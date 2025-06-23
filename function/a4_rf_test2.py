@@ -1,6 +1,9 @@
+import pandas as pd
+from a1_rf_training import train_cognitive_and_engagement_models
+from a3_rf_predictor import predict_cognitive_load_and_engagement
 # Define the path to your CSV file (Assuming you have mounted Google Drive and know the path)
 # Replace with the actual path to your CSV file if it's different
-csv_file_path = '/content/drive/MyDrive/The Paper/Numerical/Code/training_data_v2.csv'
+csv_file_path = 'data/sample_training_data.csv'
 
 # Train the models and capture the returned models and feature names
 # Updated to unpack 3 values as returned by the function

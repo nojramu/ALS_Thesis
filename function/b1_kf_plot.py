@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt # Import matplotlib
 import pandas as pd # Import pandas
+import os
+from datetime import datetime
 
 # Load sample predictions data (assuming the file path is correct and accessible)
-csv_file_path2 = '/content/drive/MyDrive/The Paper/Numerical/Code/sample_predictions.csv'
+csv_file_path2 = 'data/sample_predictions.csv'  # Adjust the path as needed
 try:
     df_predictions = pd.read_csv(csv_file_path2)
 except FileNotFoundError:
@@ -27,7 +29,16 @@ if df_predictions is not None:
     # Add a legend
     ax.legend()
 
-    # Display the Matplotlib figure
-    plt.show()
+    # Ensure image directory exists
+    image_dir = os.path.join(os.path.dirname(__file__), '..', 'image')
+    os.makedirs(image_dir, exist_ok=True)
+
+    # Save the figure with timestamp
+    filename = f"kf_unfiltered_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+    filepath = os.path.join(image_dir, filename)
+    plt.savefig(filepath)
+    plt.close()
+
+    print(f"Plot saved to {filepath}")
 else:
     print("Skipping plot due to data loading error.")
