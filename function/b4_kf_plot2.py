@@ -1,9 +1,12 @@
 import matplotlib.pyplot as plt # Import matplotlib
 import pandas as pd # Import pandas
 import numpy as np # Import numpy for apply_kalman_filter
+import os
+from datetime import datetime
+from b2_kf_filter import apply_kalman_filter # Import apply_kalman_filter function
 
 # Load sample predictions data (assuming the file path is correct and accessible)
-csv_file_path2 = '/content/drive/MyDrive/The Paper/Numerical/Code/sample_predictions.csv'
+csv_file_path2 = 'data/sample_predictions.csv' # Update with the correct path to your CSV file
 try:
     df_predictions = pd.read_csv(csv_file_path2)
 except FileNotFoundError:
@@ -25,7 +28,6 @@ if df_predictions is not None:
         if 'apply_kalman_filter' in globals():
             smoothed_cognitive_load = apply_kalman_filter(cognitive_load_measurements)
             df_predictions['smoothed_cognitive_load'] = smoothed_cognitive_load
-            display(df_predictions.head()) # Display head after adding smoothed data
 
             # Create a Matplotlib figure and axes
             fig, ax = plt.subplots()
@@ -44,8 +46,17 @@ if df_predictions is not None:
             # Add a legend
             ax.legend()
 
-            # Display the Matplotlib figure
-            plt.show()
+            # Ensure image directory exists
+            image_dir = os.path.join(os.path.dirname(__file__), '..', 'image')
+            os.makedirs(image_dir, exist_ok=True)
+
+            # Save the figure with timestamp
+            filename = f"kf_filtered_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+            filepath = os.path.join(image_dir, filename)
+            plt.savefig(filepath)
+            plt.close()
+
+            print(f"Plot saved to {filepath}")
         else:
             print("Error: 'apply_kalman_filter' function not found. Please ensure the Kalman Filter cell is executed.")
     else:

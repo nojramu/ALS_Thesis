@@ -1,3 +1,7 @@
+from c0_sr_integrate import simpsons_rule
+from c2_sr_discretize import discretize_simpsons_result
+from c1_sr_application import simpsons_integral
+
 if simpsons_integral is not None:
     # Discretize the integral into 5 buckets
     num_buckets = 5 # Adjustable number of buckets

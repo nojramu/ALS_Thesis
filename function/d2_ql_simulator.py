@@ -1,4 +1,8 @@
 # --- Simulation Environment Dynamics (Modularized) ---
+import numpy as np
+import random
+from d1_ql_validator import is_valid_state, is_valid_action
+
 
 def simulate_cognitive_load_change(current_simpsons_level: int, chosen_difficulty: int, current_completed: int) -> int:
     """

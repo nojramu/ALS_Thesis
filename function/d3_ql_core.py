@@ -1,4 +1,9 @@
 # --- Task type Sequencing ---
+import random
+import numpy as np
+from d0_ql_setup import action_to_index, index_to_action
+from d1_ql_validator import is_valid_state, is_valid_action
+
 
 def get_next_task_type_in_sequence(prev_task_type: str) -> str:
     """
