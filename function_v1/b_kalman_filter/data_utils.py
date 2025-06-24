@@ -1,5 +1,5 @@
 import pandas as pd
-from b2_kf_filter import apply_kalman_filter
+import os
 
 def load_predictions(csv_path='data/sample_predictions.csv'):
     try:
@@ -12,10 +12,5 @@ def load_predictions(csv_path='data/sample_predictions.csv'):
         print(f"Error loading CSV file: {e}")
         return None
 
-df_predictions = load_predictions()
-if df_predictions is None:
-    exit(1)
-
-cognitive_load_measurements = df_predictions['cognitive_load'].values
-df_predictions['smoothed_cognitive_load'] = apply_kalman_filter(cognitive_load_measurements)
-print(df_predictions.head())
+def ensure_dir_exists(directory):
+    os.makedirs(directory, exist_ok=True)
