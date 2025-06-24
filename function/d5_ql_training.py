@@ -1,3 +1,7 @@
+import numpy as np
+from d1_ql_validator import is_valid_state
+from d3_ql_core import epsilon_greedy_action_selection, update_q_table
+from d2_ql_simulator import simulate_next_state_and_reward
 # --- Q-Learning Training Function ---
 
 def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learning_rate: float, discount_factor: float, epsilon: float, epsilon_decay_rate: float, min_epsilon: float, state_to_index: dict, index_to_state: dict, action_to_index: dict, index_to_action: dict, q_table: np.ndarray):
@@ -42,7 +46,7 @@ def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learni
         # Episode loop
         for step in range(max_steps_per_episode):
             # Action selection
-            action = epsilon_greedy_action_selection(current_state, q_table, state_to_index, index_to_action, current_epsilon)
+            action = epsilon_greedy_action_selection(current_state, q_table, state_to_index, index_to_action, action_to_index, current_epsilon)
 
             # Handle case where action selection failed (shouldn't happen with valid start state and valid_state check)
             if action is None:

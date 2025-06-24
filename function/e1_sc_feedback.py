@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt # Used for visualization
 import sys # To handle input from user
+from e0_sc_monitor import visualize_control_chart # Assuming this function is defined in e0_sc_monitor.py
 
 # Assuming control chart functions (initialize_control_chart, visualize_control_chart, etc.)
 # are defined in a previous cell.

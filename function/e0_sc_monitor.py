@@ -153,9 +153,11 @@ def visualize_control_chart(chart_state: dict):
         chart_state (dict): The dictionary representing the control chart state.
 
     Returns:
-        matplotlib.figure.Figure or None: The Matplotlib figure object, or None if
-                                        there is not enough data to visualize.
+        str or None: The file path where the plot was saved, or None if not enough data.
     """
+    import os
+    from datetime import datetime
+
     chart_data = get_control_chart_data(chart_state)
     if chart_data is None:
         print("Not enough data to visualize the chart.")
@@ -180,17 +182,26 @@ def visualize_control_chart(chart_state: dict):
     ax.axhline(lcl, color='red', linestyle='--', label='Lower Control Limit (LCL)')
 
     # Highlight anomalies
-    # Use the indices stored in _anomalies, which are relative to the current window
     anomaly_x = [i for i in anomalies]
-    anomaly_y = [engagement_rates[i] for i in anomalies] # Get the actual values at those indices
-    if anomaly_x: # Only add if there are anomalies
-         ax.plot(anomaly_x, anomaly_y, 'rx', markersize=10, label='Anomaly') # 'rx' means red 'x' markers
-
+    anomaly_y = [engagement_rates[i] for i in anomalies]
+    if anomaly_x:
+        ax.plot(anomaly_x, anomaly_y, 'rx', markersize=10, label='Anomaly')
 
     # Update layout
     ax.set_title(f'Shewhart Control Chart (Rolling Window {window_size})')
     ax.set_xlabel('Task Index (within window)')
     ax.set_ylabel('Engagement Rate')
-    ax.legend(loc='upper right') # Adjust legend location
+    ax.legend(loc='upper right')
 
-    return fig # Return the figure object for display
+    # Ensure image directory exists
+    image_dir = os.path.join(os.path.dirname(__file__), '..', 'image')
+    os.makedirs(image_dir, exist_ok=True)
+
+    # Save the figure with timestamp
+    filename = f"sc_monitor_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+    filepath = os.path.join(image_dir, filename)
+    fig.savefig(filepath)
+    plt.close(fig)
+
+    print(f"Plot saved to {filepath}")
+    return

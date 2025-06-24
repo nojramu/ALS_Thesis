@@ -1,3 +1,10 @@
+import matplotlib.pyplot as plt
+from d0_ql_setup import define_state_space, define_action_space, initialize_q_table
+from d1_ql_validator import is_valid_state, is_valid_action
+from d4_ql_analysis import get_optimal_action_for_state, get_top_n_actions_for_state
+from d5_ql_training import train_q_learning_agent
+import os
+from datetime import datetime
 # Execute the training cell
 # --- Main Execution Block ---
 
@@ -86,5 +93,14 @@ reward_ax.set_ylabel('Total Reward')
 # Add a legend
 reward_ax.legend()
 
-# Display the Matplotlib figure
-plt.show()
+# Ensure image directory exists
+image_dir = os.path.join(os.path.dirname(__file__), '..', 'image')
+os.makedirs(image_dir, exist_ok=True)
+
+# Save the figure with timestamp
+filename = f"ql_test_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+filepath = os.path.join(image_dir, filename)
+plt.savefig(filepath)
+plt.close()
+
+print(f"Plot saved to {filepath}")

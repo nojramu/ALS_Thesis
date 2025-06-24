@@ -1,9 +1,8 @@
 # --- Task type Sequencing ---
 import random
 import numpy as np
-from d0_ql_setup import action_to_index, index_to_action
 from d1_ql_validator import is_valid_state, is_valid_action
-
+from d0_ql_setup import define_action_space
 
 def get_next_task_type_in_sequence(prev_task_type: str) -> str:
     """
@@ -37,7 +36,7 @@ def get_next_task_type_in_sequence(prev_task_type: str) -> str:
 
 # --- Core Q-Learning Functions ---
 
-def epsilon_greedy_action_selection(current_state: tuple, q_table: np.ndarray, state_to_index: dict, index_to_action: dict, epsilon: float) -> tuple | None:
+def epsilon_greedy_action_selection(current_state, q_table, state_to_index, index_to_action, action_to_index, epsilon):
     """
     Selects an action using the epsilon-greedy policy, strictly enforcing the
     task type rotation (A->B->C->D->A).
@@ -52,6 +51,7 @@ def epsilon_greedy_action_selection(current_state: tuple, q_table: np.ndarray, s
         q_table (np.ndarray): The learned Q-table.
         state_to_index (dict): Mapping from state tuple to index (for state lookup).
         index_to_action (dict): Mapping from index to action tuple (for action lookup).
+        action_to_index (dict): Mapping from action tuple to index (for action lookup).
         epsilon (float): The probability of choosing a random action (exploration rate, 0 to 1).
 
     Returns:

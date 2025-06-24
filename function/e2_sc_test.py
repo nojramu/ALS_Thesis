@@ -1,9 +1,12 @@
+from e0_sc_monitor import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
+from e1_sc_feedback import get_adjusted_decision
+
 # Instantiate a ShewhartControlChart object with a window size of 10
 # control_chart = ShewhartControlChart(window_size=10) # Replace class instantiation
 control_chart_state = initialize_control_chart(window_size=10) # Initialize state dictionary
 
 # Instantiate a FeedbackInterface object, passing the created control chart instance
-# feedback_interface = FeedbackInterface(control_chart=control_chart) # No longer needed
+# feedback_interface = FeedbackInterf7ace(control_chart=control_chart) # No longer needed
 
 # 1. Populate the control chart with sample data (at least 10 for window_size=10)
 sample_engagement_history = [0.75, 0.78, 0.80, 0.76, 0.82, 0.79, 0.81, 0.77, 0.83, 0.79]

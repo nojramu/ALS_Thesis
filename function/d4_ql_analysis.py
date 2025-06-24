@@ -1,3 +1,5 @@
+import numpy as np
+from d1_ql_validator import is_valid_state
 # --- Q-table Analysis Functions ---
 
 def get_optimal_action_for_state(current_state: tuple, q_table: np.ndarray, state_to_index: dict, index_to_action: dict) -> tuple | None:
