@@ -25,9 +25,24 @@ def ensure_dir_exists(directory):
     """Ensure a directory exists."""
     os.makedirs(directory, exist_ok=True)
 
+def display_csv_head(df, n=5):
+    """Display the first n rows of a DataFrame."""
+    if df is not None:
+        print(df.head(n))
+    else:
+        print("No DataFrame to display.")
+
 def preprocess_data(df, required_features, is_training_data=False):
     """
     Preprocess DataFrame: check columns, convert types, fill missing values.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame.
+        required_features (list): List of required feature column names.
+        is_training_data (bool): Whether the data is for training (adds target columns).
+
+    Returns:
+        pd.DataFrame or None: Preprocessed DataFrame or None if errors.
     """
     if df is None:
         return None
@@ -43,7 +58,7 @@ def preprocess_data(df, required_features, is_training_data=False):
         print(f"Error: Missing columns: {missing}")
         return None
 
-    # Numeric columns
+    # Numeric columns to process
     numeric_cols = [
         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
         'quiz_score', 'difficulty', 'error_rate', 'time_before_hint_used'
@@ -51,15 +66,17 @@ def preprocess_data(df, required_features, is_training_data=False):
     if is_training_data:
         numeric_cols.append('cognitive_load')
 
+    # Convert numeric columns to numeric dtype and fill missing values with median
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
             df[col] = df[col].fillna(df[col].median())
 
-    # Integer columns
+    # Integer columns to process
     int_cols = ['task_completed', 'task_timed_out']
     if is_training_data:
         int_cols.append('engagement_level')
+    # Convert integer columns and fill missing values appropriately
     for col in int_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -70,16 +87,23 @@ def preprocess_data(df, required_features, is_training_data=False):
 
     return df
 
-'''Example usage:
-if __name__ == "__main__":
-    # Load data
-    df = load_csv('data/sample_data.csv')
+'''Example usage:'''
+# if __name__ == "__main__":
+#     # Load data
+#     df = load_csv('data/sample_training_data.csv')
     
-    # Preprocess data
-    required_features = ['engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count']
-    df_processed = preprocess_data(df, required_features, is_training_data=True)
+#     # Show all columns in the DataFrame
+#     pd.set_option('display.max_columns', None)  # Show all columns
+#     display_csv_head(df, n=5)
     
-    if df_processed is not None:
-        # Save processed data
-        save_csv(df_processed, 'data/processed_data.csv')
-'''
+#     # Preprocess data
+#     required_features = [
+#         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+#         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+#         'task_timed_out', 'time_before_hint_used'
+#     ]
+#     df_processed = preprocess_data(df, required_features, is_training_data=True)
+    
+#     if df_processed is not None:
+#         # Save processed data
+#         save_csv(df_processed, 'data/processed_data.csv')
