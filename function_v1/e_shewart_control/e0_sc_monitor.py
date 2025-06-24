@@ -57,14 +57,16 @@ def calculate_control_limits(chart_state: dict):
     data_array = np.array(data_window)
 
     chart_state['cl'] = np.mean(data_array)
-    std_dev = np.std(data_array) # Using population std dev (default for np.std)
+    std_dev = np.std(data_array, ddof=1)  # Use sample standard deviation
 
     chart_state['ucl'] = chart_state['cl'] + 3 * std_dev
     chart_state['lcl'] = chart_state['cl'] - 3 * std_dev
 
     # Ensure LCL is not below 0 and UCL is not above 1.0 for engagement rate (0-1)
-    chart_state['lcl'] = max(0.0, chart_state['lcl'])
-    chart_state['ucl'] = min(1.0, chart_state['ucl'])
+    if chart_state['lcl'] is not None:
+        chart_state['lcl'] = max(0.0, float(chart_state['lcl']))
+    if chart_state['ucl'] is not None:
+        chart_state['ucl'] = min(1.0, float(chart_state['ucl']))
 
     # Update anomalies based on the *current* window data and the *newly calculated* limits
     chart_state['_anomalies'] = [i for i, rate in enumerate(data_window)
@@ -114,7 +116,9 @@ def check_for_engagement_anomaly(chart_state: dict) -> bool:
     return latest_engagement_rate > chart_state['ucl'] or latest_engagement_rate < chart_state['lcl']
 
 
-def get_control_chart_data(chart_state: dict) -> dict:
+from typing import Optional
+
+def get_control_chart_data(chart_state: dict) -> Optional[dict]:
     """
     Returns the current chart data including engagement rates and control limits
     from the provided chart state.

@@ -70,9 +70,22 @@ def add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load
 # Example usage:
 if __name__ == "__main__":
     from data_handling import load_csv, save_csv, display_csv_head
+    from plot_responsive import plot_line_chart, save_figure_to_image_folder
 
     df = load_csv('data/sample_predictions.csv')
     if df is not None:
         df = add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load')
         display_csv_head(df)
         save_csv(df, 'data/sample_predictions_smoothed.csv')
+
+        # Plot original and filtered cognitive load using plot_responsive
+        fig = plot_line_chart(
+            x=df.index,
+            y=[df['cognitive_load'].values, df['smoothed_cognitive_load'].values],
+            xlabel='Row Number',
+            ylabel='Cognitive Load',
+            title='Original vs. Kalman-Filtered Cognitive Load',
+            legend_labels=['Original', 'Kalman Filtered'],
+            show=False
+        )
+        save_figure_to_image_folder(fig, prefix='kalman_filtered', image_dir='image')
