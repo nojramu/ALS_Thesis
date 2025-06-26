@@ -137,28 +137,3 @@ def save_figure_to_image_folder(fig, prefix='plot', image_dir='image', custom_na
     fig.savefig(save_path)
     print(f"Plot saved to {save_path}")
     return save_path
-
-'''Example usage:'''
-# if __name__ == "__main__":
-#     # Line chart example
-#     fig = plot_line_chart(
-#         x=[1, 2, 3, 4],
-#         y=[[1, 2, 3, 4], [2, 3, 4, 5]],
-#         xlabel='Time',
-#         ylabel='Value',
-#         title='Sample Line Chart',
-#         legend_labels=['Series 1', 'Series 2'],
-#         show=False
-#     )
-#     save_figure_to_image_folder(fig, prefix='line_chart', image_dir='image', custom_name='my_custom_plot')
-
-#     # Bar chart example
-#     fig = plot_bar_chart(
-#         x=['A', 'B', 'C', 'D'],
-#         y=[3, 7, 2, 5],
-#         xlabel='Category',
-#         ylabel='Values',
-#         title='Sample Bar Chart',
-#         show=False
-#     )
-#     save_figure_to_image_folder(fig, prefix='bar_chart', image_dir='image', custom_name='my_bar_chart')

@@ -70,7 +70,7 @@ def add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load
 # Example usage:
 if __name__ == "__main__":
     from data_handling import load_csv, save_csv, display_csv_head
-    from plot_responsive import plot_line_chart, save_figure_to_image_folder
+    from function_v2.plot_utils import plot_line_chart, save_figure_to_image_folder
 
     df = load_csv('data/sample_predictions.csv')
     if df is not None:
