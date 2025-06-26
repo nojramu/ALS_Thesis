@@ -4,12 +4,15 @@ from datetime import datetime
 from io import BytesIO
 from PIL import Image
 
+import plotly.graph_objs as go
+import plotly.express as px
+
 def plot_line_chart(
     x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_labels=None,
     save_path=None, show=False
 ):
     """
-    Plots a line chart and optionally saves or returns the figure.
+    Plots a line chart using Matplotlib and optionally saves or returns the figure.
 
     Args:
         x (array-like): X-axis data.
@@ -51,7 +54,7 @@ def plot_bar_chart(
     x, y, xlabel='X', ylabel='Y', title='Bar Chart', save_path=None, show=False, rotation=45
 ):
     """
-    Plots a bar chart and optionally saves or returns the figure.
+    Plots a bar chart using Matplotlib and optionally saves or returns the figure.
 
     Args:
         x (array-like): X-axis categories.
@@ -137,3 +140,79 @@ def save_figure_to_image_folder(fig, prefix='plot', image_dir='image', custom_na
     fig.savefig(save_path)
     print(f"Plot saved to {save_path}")
     return save_path
+
+# --- Plotly and Dash Integration ---
+
+def plotly_line_chart(x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_labels=None, save_path=None, show=False):
+    """
+    Plots a line chart using Plotly.
+    """
+    fig = go.Figure()
+    if isinstance(y, list) and legend_labels:
+        for yi, label in zip(y, legend_labels):
+            fig.add_trace(go.Scatter(x=x, y=yi, mode='lines', name=label))
+    elif isinstance(y, list):
+        for yi in y:
+            fig.add_trace(go.Scatter(x=x, y=yi, mode='lines'))
+    else:
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=legend_labels[0] if legend_labels else None))
+    fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
+    if save_path:
+        fig.write_image(save_path)
+        print(f"Plotly plot saved to {save_path}")
+    if show:
+        fig.show()
+    return fig
+
+def plotly_heatmap(z, x=None, y=None, xlabel='X', ylabel='Y', title='Heatmap', save_path=None, show=False, colorbar_title="Value"):
+    """
+    Plots a heatmap using Plotly.
+    """
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=x,
+        y=y,
+        colorbar=dict(title=colorbar_title)
+    ))
+    fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
+    if save_path:
+        fig.write_image(save_path)
+        print(f"Plotly heatmap saved to {save_path}")
+    if show:
+        fig.show()
+    return fig
+
+def plotly_qtable_heatmap(q_table, save_path=None, show=False):
+    """
+    Plots a Q-table heatmap using Plotly.
+    """
+    fig = px.imshow(q_table, color_continuous_scale='Viridis', aspect='auto',
+                    labels=dict(x="Action Index", y="State Index", color="Q-value"),
+                    title="Q-table Heatmap")
+    if save_path:
+        fig.write_image(save_path)
+        print(f"Q-table heatmap saved to {save_path}")
+    if show:
+        fig.show()
+    return fig
+
+def launch_dash_heatmap_app(q_table):
+    """
+    Launches a Dash app to interactively visualize the Q-table heatmap.
+    """
+    import dash
+    from dash import dcc, html
+    import plotly.express as px
+
+    app = dash.Dash(__name__)
+    fig = px.imshow(q_table, color_continuous_scale='Viridis', aspect='auto',
+                    labels=dict(x="Action Index", y="State Index", color="Q-value"),
+                    title="Q-table Heatmap")
+
+    app.layout = html.Div([
+        html.H1("Q-table Heatmap"),
+        dcc.Graph(figure=fig)
+    ])
+
+    print("Dash app running at http://127.0.0.1:8050/")
+    app.run_server(debug=True, use_reloader=False)

@@ -1,4 +1,4 @@
-from function_v2.plot_utils import plot_line_chart, save_figure_to_image_folder
+from plot_utils import plot_line_chart, save_figure_to_image_folder
 import numpy as np
 
 def initialize_control_chart(window_size=10):
@@ -64,37 +64,54 @@ def get_control_chart_data(chart_state):
         'anomalies': chart_state['anomalies']
     }
 
+def plot_shewhart_chart(chart_state, filename_prefix='shewhart_chart', image_dir='image'):
+    """
+    Plots the Shewhart control chart with engagement rates, CL, UCL, LCL, and anomalies.
+    Returns the matplotlib figure.
+    """
+    chart_data = get_control_chart_data(chart_state)
+    if not chart_data:
+        print("Not enough data to plot the control chart.")
+        return None
+
+    x = list(range(len(chart_data['engagement_rates'])))
+    y = [chart_data['engagement_rates']]
+    legend = ['Engagement Rate']
+    cl = [chart_data['cl']] * len(x)
+    ucl = [chart_data['ucl']] * len(x)
+    lcl = [chart_data['lcl']] * len(x)
+    y.extend([cl, ucl, lcl])
+    legend.extend(['CL', 'UCL', 'LCL'])
+
+    fig = plot_line_chart(
+        x=x,
+        y=y,
+        xlabel='Task Index (within window)',
+        ylabel='Engagement Rate',
+        title='Shewhart Control Chart',
+        legend_labels=legend,
+        show=False
+    )
+
+    # Highlight anomalies
+    if chart_data['anomalies']:
+        ax = fig.axes[0]
+        anomaly_x = [i for i in chart_data['anomalies']]
+        anomaly_y = [chart_data['engagement_rates'][i] for i in anomaly_x]
+        ax.plot(anomaly_x, anomaly_y, 'rx', markersize=10, label='Anomaly')
+        ax.legend()
+
+    save_figure_to_image_folder(fig, prefix=filename_prefix, image_dir=image_dir)
+    print("Shewhart control chart plotted and saved.")
+    return fig
+
 def get_adjusted_decision(chart_state, current_state, recommended_action):
     """
-    Displays the control chart, system recommendation, and allows user to adjust difficulty.
-    Returns (adjusted_action, chart_fig)
+    Modular feedback interface: displays the control chart, system recommendation,
+    and allows user to adjust difficulty. Returns (adjusted_action, chart_fig).
     """
     print("\n--- Engagement Control Chart ---")
-    chart_data = get_control_chart_data(chart_state)
-    chart_fig = None
-    if chart_data:
-        x = list(range(len(chart_data['engagement_rates'])))
-        y = [chart_data['engagement_rates']]
-        legend = ['Engagement Rate']
-        cl = [chart_data['cl']] * len(x)
-        ucl = [chart_data['ucl']] * len(x)
-        lcl = [chart_data['lcl']] * len(x)
-        y.extend([cl, ucl, lcl])
-        legend.extend(['CL', 'UCL', 'LCL'])
-        chart_fig = plot_line_chart(
-            x=x,
-            y=y,
-            xlabel='Task Index (within window)',
-            ylabel='Engagement Rate',
-            title='Shewhart Control Chart',
-            legend_labels=legend,
-            show=False
-        )
-        save_figure_to_image_folder(chart_fig, prefix='shewhart_chart', image_dir='image')
-        print("Chart plotted and saved.")
-    else:
-        print("Not enough data to display the control chart.")
-
+    chart_fig = plot_shewhart_chart(chart_state)
     recommended_task_type, recommended_difficulty = recommended_action
     print(f"\nSystem Recommendation: Task Type: {recommended_task_type}, Difficulty: {recommended_difficulty}")
     print(f"Current State: {current_state}")
@@ -119,35 +136,3 @@ def get_adjusted_decision(chart_state, current_state, recommended_action):
 
     adjusted_action = (recommended_task_type, adjusted_difficulty)
     return adjusted_action, chart_fig
-    
-
-# Example usage:
-# if __name__ == "__main__":
-#     from q_learning import (
-#     define_state_space, define_action_space, initialize_q_table,
-#     epsilon_greedy_action_selection, update_q_table)
-#     """
-#     Example function to run a Q-learning loop with Shewhart feedback.
-#     """
-#     num_steps=15
-#     epsilon=0.1
-#     states, state_to_index, index_to_state, num_states = define_state_space()
-#     actions, action_to_index, index_to_action, num_actions = define_action_space()
-#     q_table = initialize_q_table(num_states, num_actions)
-#     chart_state = initialize_control_chart(window_size=10)
-#     current_state = states[0]
-#     for step in range(num_steps):
-#         action = epsilon_greedy_action_selection(current_state, q_table, state_to_index, index_to_action, action_to_index, epsilon=epsilon)
-#         # Simulate environment (replace with your own logic)
-#         next_state = states[(state_to_index[current_state] + 1) % num_states]
-#         engagement_rate = next_state[1] / 5.0  # Example: normalize engagement_level
-#         add_engagement_data(chart_state, engagement_rate)
-#         is_anomaly = check_for_engagement_anomaly(chart_state)
-#         reward = -1 if is_anomaly else 1
-#         update_q_table(q_table, current_state, action, reward, next_state, 0.1, 0.9, state_to_index, action_to_index)
-#         current_state = next_state
-#         # Feedback interface (optional, e.g., every 5 steps)
-#         if step % 5 == 0:
-#             adjusted_action, chart_fig = get_adjusted_decision(chart_state, current_state, action)
-#     print("Final Q-table:", q_table)
-#     print("Final Chart State:", chart_state)
