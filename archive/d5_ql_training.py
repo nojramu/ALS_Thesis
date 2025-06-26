@@ -4,6 +4,7 @@ from d3_ql_core import epsilon_greedy_action_selection, update_q_table
 from d2_ql_simulator import simulate_next_state_and_reward
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 # --- Q-Learning Training Function ---
 
 def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learning_rate: float, discount_factor: float, epsilon: float, epsilon_decay_rate: float, min_epsilon: float, state_to_index: dict, index_to_state: dict, action_to_index: dict, index_to_action: dict, q_table: np.ndarray):
@@ -99,8 +100,11 @@ def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learni
         if (episode + 1) % 100 == 0:
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_episode_reward:.2f}, Epsilon: {current_epsilon:.4f}")
         if episode % 100 == 0:
-            np.save(f"qtable_snapshot_ep{episode}.npy", q_table)
-            print(f"Q-table snapshot at episode {episode} saved.")
+            # Ensure snapshot directory exists
+            snapshot_dir = os.path.join(os.path.dirname(__file__), '..', 'snapshot')
+            os.makedirs(snapshot_dir, exist_ok=True)
+            np.save(os.path.join(snapshot_dir, f"qtable_snapshot_ep{episode}.npy"), q_table)
+            print(f"Q-table snapshot at episode {episode} saved to {snapshot_dir}.")
 
 
     # After training

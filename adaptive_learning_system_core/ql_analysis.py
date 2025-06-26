@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from ql_setup import is_valid_state
 import matplotlib.pyplot as plt
@@ -66,10 +67,13 @@ def track_policy_evolution(policy_evolution_list, state, index_to_action):
 
 def save_q_table_snapshot(q_table, filename):
     """
-    Save a Q-table snapshot to disk (numpy .npy format).
+    Save a Q-table snapshot to disk (numpy .npy format) in the snapshot folder.
     """
-    np.save(filename, q_table)
-    print(f"Q-table snapshot saved to {filename}")
+    snapshot_dir = os.path.join(os.path.dirname(__file__), '..', 'snapshot')
+    os.makedirs(snapshot_dir, exist_ok=True)
+    full_path = os.path.join(snapshot_dir, filename)
+    np.save(full_path, q_table)
+    print(f"Q-table snapshot saved to {full_path}")
 
 def load_q_table_snapshot(filename):
     """
