@@ -1,4 +1,5 @@
 from plot_utils import plot_line_chart, save_figure_to_image_folder
+from ql_core import update_q_table  # Import at the top for clarity
 import numpy as np
 
 def initialize_control_chart(window_size=10):
@@ -35,6 +36,7 @@ def add_engagement_data(chart_state, engagement_rate):
     """
     Add a new engagement rate to the control chart, maintaining the window size.
     Recalculates control limits after adding.
+    (No need to call calculate_control_limits separately.)
     """
     chart_state['engagement_data'].append(engagement_rate)
     if len(chart_state['engagement_data']) > chart_state['window_size']:
@@ -53,6 +55,7 @@ def check_for_engagement_anomaly(chart_state):
 def get_control_chart_data(chart_state):
     """
     Return the current control chart data for plotting or analysis.
+    (Could be inlined if only used in one place, but kept modular for clarity.)
     """
     if chart_state['cl'] is None or chart_state['ucl'] is None or chart_state['lcl'] is None:
         return None
@@ -175,7 +178,6 @@ def handle_anomaly_and_update_q(
             print("Invalid input. Using default anomaly reward.")
 
     # Update Q-table
-    from ql_core import update_q_table
     update_q_table(
         q_table, current_state, action, reward, next_state,
         learning_rate, discount_factor, state_to_index, action_to_index

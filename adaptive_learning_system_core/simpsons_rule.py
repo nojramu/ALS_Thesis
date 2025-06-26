@@ -56,18 +56,28 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         print("Error: Invalid input for discretization.")
         return None
 
-    # Use historical data to define the range if available
+    # --- Robust Range Logic ---
+    # 1. Use historical data if available and valid
     if historical_integral_values is not None and len(historical_integral_values) > 1:
         min_range = np.min(historical_integral_values)
         max_range = np.max(historical_integral_values)
         print(f"Using historical data range for discretization: [{min_range:.2f}, {max_range:.2f}]")
     else:
-        # If no historical data, use a dynamic range based on the input value
-        min_range = 0
-        max_range = simpsons_integral_value * 2 if simpsons_integral_value > 0 else 100
-        print(f"Using dynamic range based on input value for discretization: [{min_range:.2f}, {max_range:.2f}]")
+        # 2. Try to use global cognitive_load_values and h if available
+        cognitive_load_values = globals().get('cognitive_load_values', None)
+        h = globals().get('h', None)
+        if cognitive_load_values is not None and len(cognitive_load_values) > 0 and h is not None:
+            max_range_estimate = np.max(cognitive_load_values) * len(cognitive_load_values) * h
+            max_range = max(max_range_estimate * 1.1, simpsons_integral_value * 1.1)
+            min_range = 0
+            print(f"Using global cognitive_load_values and h for discretization: [{min_range:.2f}, {max_range:.2f}]")
+        else:
+            # 3. Fallback: Use a dynamic range based on the input value
+            min_range = 0
+            max_range = simpsons_integral_value * 2 if simpsons_integral_value > 0 else 100
+            print(f"Using dynamic range based on input value for discretization: [{min_range:.2f}, {max_range:.2f}]")
 
-    # Ensure the range is valid
+    # Ensure min is less than max for bucket creation
     if min_range >= max_range:
         print(f"Warning: Calculated range [{min_range:.2f}, {max_range:.2f}] is invalid. Using a default range based on input value.")
         min_range = 0
@@ -75,8 +85,10 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         if max_range <= min_range:
             max_range = min_range + 1
 
-    # Create equally spaced bins for discretization
+    # Define the bucket edges
     bins = np.linspace(min_range, max_range, num_buckets + 1).tolist()
+
+    # Assign the value to a bin using pd.cut
     integral_series = pd.Series([simpsons_integral_value])
     bucket_index_category = pd.cut(integral_series, bins=bins, include_lowest=True, labels=False)
 
@@ -88,7 +100,6 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         else:
             bucket_index = num_buckets - 1
     else:
-        bucket_index = bucket_index_category[0]
-        bucket_index = int(np.clip(bucket_index, 0, num_buckets - 1))
+        bucket_index = int(np.clip(bucket_index_category[0], 0, num_buckets - 1))
 
     return bucket_index + 1  # Return 1-based bucket index

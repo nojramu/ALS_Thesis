@@ -86,24 +86,3 @@ def preprocess_data(df, required_features, is_training_data=False):
                 df[col] = df[col].fillna(df[col].median()).astype(int)
 
     return df
-
-'''Example usage:'''
-# if __name__ == "__main__":
-#     # Load data
-#     df = load_csv('data/sample_training_data.csv')
-    
-#     # Show all columns in the DataFrame
-#     pd.set_option('display.max_columns', None)  # Show all columns
-#     display_csv_head(df, n=5)
-    
-#     # Preprocess data
-#     required_features = [
-#         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
-#         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
-#         'task_timed_out', 'time_before_hint_used'
-#     ]
-#     df_processed = preprocess_data(df, required_features, is_training_data=True)
-    
-#     if df_processed is not None:
-#         # Save processed data
-#         save_csv(df_processed, 'data/processed_data.csv')
