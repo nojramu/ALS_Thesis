@@ -136,3 +136,49 @@ def get_adjusted_decision(chart_state, current_state, recommended_action):
 
     adjusted_action = (recommended_task_type, adjusted_difficulty)
     return adjusted_action, chart_fig
+
+def handle_anomaly_and_update_q(
+    current_state, action, next_state, q_table,
+    state_to_index, action_to_index,
+    learning_rate, discount_factor,
+    anomaly_detected, teacher_override_enabled=True, default_anomaly_reward=-20.0
+):
+    """
+    Handles reward shaping and Q-table update when an anomaly is detected.
+    Optionally allows teacher (user) override for the anomaly reward.
+
+    Args:
+        current_state: Current state tuple.
+        action: Action tuple.
+        next_state: Next state tuple.
+        q_table: Q-table (np.ndarray).
+        state_to_index: State-to-index mapping.
+        action_to_index: Action-to-index mapping.
+        learning_rate: Q-learning alpha.
+        discount_factor: Q-learning gamma.
+        anomaly_detected (bool): Whether an anomaly was detected.
+        teacher_override_enabled (bool): If True, prompt user for custom reward.
+        default_anomaly_reward (float): Default penalty for anomaly.
+
+    Returns:
+        float: The reward used for the Q-table update.
+    """
+    reward = default_anomaly_reward if anomaly_detected else 0.0
+
+    # Optionally allow teacher override only if anomaly detected
+    if anomaly_detected and teacher_override_enabled:
+        try:
+            user_input = input(f"Anomaly detected! Enter custom reward (or press Enter to use {reward}): ")
+            if user_input.strip() != "":
+                reward = float(user_input)
+        except Exception:
+            print("Invalid input. Using default anomaly reward.")
+
+    # Update Q-table
+    from ql_core import update_q_table
+    update_q_table(
+        q_table, current_state, action, reward, next_state,
+        learning_rate, discount_factor, state_to_index, action_to_index
+    )
+    print(f"Q-table updated with reward: {reward}")
+    return reward
