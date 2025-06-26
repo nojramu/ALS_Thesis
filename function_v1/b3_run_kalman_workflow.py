@@ -1,6 +1,6 @@
-from data_utils import load_predictions
+from b0_data_utils import load_predictions
 from b2_kf_filter import apply_kalman_filter
-from plot_utils import plot_cognitive_load
+from b1_plot_utils import plot_cognitive_load
 
 def main():
     df = load_predictions()

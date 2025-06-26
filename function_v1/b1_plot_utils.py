@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
-from data_utils import ensure_dir_exists
+from b0_data_utils import ensure_dir_exists
 
 def plot_cognitive_load(df, original_col, smoothed_col=None, image_dir='../image', prefix='kf'):
     fig, ax = plt.subplots()

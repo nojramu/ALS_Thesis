@@ -44,11 +44,12 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         # Attempt to use the global variable cognitive_load_values if available
         # This is not ideal as it relies on a global variable, but matches the original code's potential context
         global cognitive_load_values # Declare intent to use global variable
-        if 'cognitive_load_values' in globals() and cognitive_load_values is not None and len(cognitive_load_values) > 0:
+        cognitive_load_values = globals().get('cognitive_load_values', None)
+        if cognitive_load_values is not None and len(cognitive_load_values) > 0:
              # A rough estimate of max integral: max_smoothed_load * number of steps * h
              # Need the step size 'h' as well. If 'h' is a global, try to use it.
-             global h # Declare intent to use global variable
-             if 'h' in globals() and h is not None:
+             h = globals().get('h', None)
+             if h is not None:
                  max_range_estimate = np.max(cognitive_load_values) * len(cognitive_load_values) * h
                  # If simpsons_integral_value exceeds this rough max, adjust the max
                  max_range = max_range_estimate * 1.1 if simpsons_integral_value > max_range_estimate else max_range_estimate
@@ -75,6 +76,7 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
 
     # Define the bucket edges
     bins = np.linspace(min_range, max_range, num_buckets + 1)
+    bins = bins.tolist()  # Convert numpy array to list for pd.cut compatibility
 
     # Find which bucket the integral value falls into
     # Use pd.cut to assign the value to a bin

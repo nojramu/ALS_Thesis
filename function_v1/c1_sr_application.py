@@ -1,8 +1,5 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from b_kalman_filter.data_utils import load_predictions
-from b_kalman_filter.b2_kf_filter import apply_kalman_filter  # Import Kalman filter
+from b0_data_utils import load_predictions
+from b2_kf_filter import apply_kalman_filter  # Import Kalman filter
 from c0_sr_integrate import simpsons_rule
 
 df_predictions = load_predictions()

@@ -2,6 +2,8 @@ import numpy as np
 from d1_ql_validator import is_valid_state
 from d3_ql_core import epsilon_greedy_action_selection, update_q_table
 from d2_ql_simulator import simulate_next_state_and_reward
+import matplotlib.pyplot as plt
+import seaborn as sns
 # --- Q-Learning Training Function ---
 
 def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learning_rate: float, discount_factor: float, epsilon: float, epsilon_decay_rate: float, min_epsilon: float, state_to_index: dict, index_to_state: dict, action_to_index: dict, index_to_action: dict, q_table: np.ndarray):
@@ -27,6 +29,8 @@ def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learni
     """
     total_rewards_per_episode = []
     current_epsilon = epsilon # Use a variable for the decaying epsilon
+    max_q_values_over_time = []
+    policy_evolution = []
 
     print(f"\nStarting Q-Learning training for {num_episodes} episodes...")
 
@@ -83,10 +87,44 @@ def train_q_learning_agent(num_episodes: int, max_steps_per_episode: int, learni
         # Store total reward for the episode
         total_rewards_per_episode.append(total_episode_reward)
 
+        # Track max Q-value for plotting
+        if episode % 10 == 0:
+            max_q_values_over_time.append(np.max(q_table))
+            # Track policy evolution for a specific state (e.g., starting_state)
+            state_for_policy_tracking = (3, 3, 0, 'A')
+            optimal_action = np.argmax(q_table[state_to_index[state_for_policy_tracking]])
+            policy_evolution.append(optimal_action)
+
         # Print periodic progress
         if (episode + 1) % 100 == 0:
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_episode_reward:.2f}, Epsilon: {current_epsilon:.4f}")
+        if episode % 100 == 0:
+            np.save(f"qtable_snapshot_ep{episode}.npy", q_table)
+            print(f"Q-table snapshot at episode {episode} saved.")
 
+
+    # After training
+    plt.plot(np.arange(0, num_episodes, 10), max_q_values_over_time)
+    plt.xlabel("Episode")
+    plt.ylabel("Max Q-value")
+    plt.title("Max Q-value Evolution During Training")
+    plt.savefig("image/q_value_evolution.png")  # Save to image folder
+    plt.close()
+
+    plt.plot(np.arange(0, num_episodes, 10), policy_evolution)
+    plt.xlabel("Episode")
+    plt.ylabel("Optimal Action Index")
+    plt.title("Policy Evolution for State X")
+    plt.savefig("image/policy_evolution_stateX.png")  # Save to image folder
+    plt.close()
+
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(q_table, cmap="viridis")
+    plt.title("Q-table Heatmap After Training")
+    plt.xlabel("Action Index")
+    plt.ylabel("State Index")
+    plt.savefig("image/qtable_heatmap.png")  # Save to image folder
+    plt.close()
 
     print("\nQ-Learning training finished.")
     return total_rewards_per_episode
