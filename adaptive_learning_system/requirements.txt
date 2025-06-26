@@ -1,0 +1,51 @@
+Adaptive Learning System Pipeline & App Plan
+
+**1. System Pipeline Overview**
+- **Preprocessing**: Load, clean, and validate synthetic or user-uploaded CSV data.
+- **Prediction (Random Forest)**: Train two separate models (one for cognitive load, one for engagement) at app start; predict cognitive load and engagement levels.
+- **Feature Engineering**
+    - **Kalman Filter**: Smooth predicted cognitive load signals.
+    - **Simpson’s Rule**: Integrate (area under curve) smoothed cognitive load.
+    - **Discretization**: Convert integrated/smoothed cognitive load into discrete states for RL.
+- **Q-Learning**: Reinforcement learning for adaptive decision-making using discretized states.
+- **Shewhart Control**: Statistical process control/monitoring for anomaly detection and feedback. If a spike or dip in engagement is detected, the recommended difficulty is adjusted and the Q-table is updated.
+- **Visualization**: Visualize data, predictions, smoothed signals, RL learning curves, Q-tables, and control charts throughout the pipeline, with live updates as new data arrives or simulation progresses.
+
+**2. App Structure**
+- **Sidebar Navigation**: Select pipeline stage (Preprocessing, Random Forest, Kalman Filter, etc.).
+- **Main Panel**: Visualizations, parameter controls, and outputs for the selected stage.
+- **Data Upload**: Allow users to upload their own CSV datasets.
+- **Simulation Controls**: Step through pipeline or run all at once.
+- **Parameter Editing**: Use text boxes (Dash `dcc.Input`) and sliders to allow users to edit parameters for simulating the next task or adjusting model settings.
+- **Save/Load State**: Option to export/import simulation results.
+
+**3. Visualization**
+- **Preprocessing**: Data summary, missing value plots.
+- **Random Forest**: Feature importance, prediction results, training/testing MSE and accuracy.
+- **Kalman Filter**: State estimates over time, real-time plots of raw and smoothed cognitive load values.
+- **Simpson Rule**: Area under curve visualization, show the range of each discretization bucket.
+- **Q-Learning**: Q-table heatmap, learning curves.
+- **Shewhart Control**: Control charts, anomaly detection.
+
+**4. Modularity**
+- Each stage is a separate Python module/class.
+- Clear interfaces for data passing between modules.
+- Easy to add/replace stages.
+
+**5. Interactivity**
+- Parameter sliders/inputs (including text boxes) for each module.
+- Immediate plot updates on parameter change.
+- Option to run pipeline on sample or uploaded data.
+- Live updates for visualizations as new data arrives or simulation progresses.
+
+**6. Extensibility**
+- Design codebase for easy addition of new algorithms or visualization types.
+
+**7. No Authentication/Deployment**
+- Focus on local use and demonstration.
+- Intended for researcher use only.
+
+**Next Steps**
+- Define CSV data formats and interfaces between modules.
+- Scaffold Dash app with navigation and placeholder visualizations.
+- Implement each module incrementally, starting with Preprocessing and Random Forest.
