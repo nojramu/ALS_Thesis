@@ -66,3 +66,34 @@ def add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load
     df = df.copy()
     df[new_col] = apply_kalman_filter(df[col].values, **kf_kwargs)
     return df
+
+if __name__ == "__main__":
+    from data_handling import load_csv, save_csv
+    from plot_utils import plot_line_chart
+
+    # Load real cognitive load data from CSV using data_handling utility
+    df = load_csv("data/sample_predictions.csv")  # Corrected path
+
+    if df is None:
+        print("Failed to load data. Exiting.")
+    else:
+        # Apply Kalman filter and add smoothed column
+        df_smoothed = add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load')
+
+        # Print first few rows to show effect
+        print(df_smoothed[['cognitive_load', 'smoothed_cognitive_load']].head())
+
+        # Save DataFrame with smoothed column
+        save_csv(df_smoothed, "data/sample_predictions_with_smoothed.csv")
+
+        # Plot original vs smoothed using plot_utils and save as image
+        plot_line_chart(
+            x=df_smoothed.index,
+            y=[df_smoothed['cognitive_load'], df_smoothed['smoothed_cognitive_load']],
+            xlabel="Index",
+            ylabel="Cognitive Load",
+            title="Kalman Filter Example (Real Data)",
+            legend_labels=["Original", "Smoothed"],
+            save_path="image/kalman_example.png",
+            show=True
+        )

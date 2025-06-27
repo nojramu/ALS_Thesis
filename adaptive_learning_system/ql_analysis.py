@@ -6,6 +6,9 @@ import seaborn as sns
 from plot_utils import plotly_qtable_heatmap
 
 def get_optimal_action_for_state(current_state, q_table, state_to_index, index_to_action):
+    """
+    Returns the optimal action for a given state based on the Q-table.
+    """
     if not is_valid_state(current_state, state_to_index):
         return None
     state_index = state_to_index[current_state]
@@ -13,6 +16,9 @@ def get_optimal_action_for_state(current_state, q_table, state_to_index, index_t
     return index_to_action[optimal_action_index]
 
 def get_top_n_actions_for_state(current_state, q_table, state_to_index, index_to_action, n=5):
+    """
+    Returns the top-n actions and their Q-values for a given state.
+    """
     if not is_valid_state(current_state, state_to_index):
         return None
     state_index = state_to_index[current_state]
@@ -22,6 +28,9 @@ def get_top_n_actions_for_state(current_state, q_table, state_to_index, index_to
     return [(index_to_action[i], q_values[i]) for i in top_n_action_indices]
 
 def print_policy_for_state(current_state, q_table, state_to_index, index_to_action, n=5):
+    """
+    Prints the top-n actions and their Q-values for a given state.
+    """
     top_actions = get_top_n_actions_for_state(current_state, q_table, state_to_index, index_to_action, n)
     if top_actions is None:
         print("Invalid state.")
@@ -31,6 +40,9 @@ def print_policy_for_state(current_state, q_table, state_to_index, index_to_acti
         print(f"  Action: {action}, Q-value: {q_value:.3f}")
 
 def plot_q_table_heatmap(q_table, filename="image/qtable_heatmap.png", show=False):
+    """
+    Plots a heatmap of the Q-table using seaborn and saves it as an image.
+    """
     plt.figure(figsize=(12, 8))
     sns.heatmap(q_table, cmap="viridis")
     plt.title("Q-table Heatmap")
@@ -50,7 +62,7 @@ def plot_q_table_heatmap_plotly(q_table, save_path=None, show=False):
 
 def extract_policy(q_table, state_to_index, index_to_action):
     """
-    Returns a dict mapping state index to optimal action index.
+    Returns a dict mapping state to its optimal action.
     """
     policy = {}
     for state, idx in state_to_index.items():
@@ -120,3 +132,66 @@ def print_policy_summary(q_table, state_to_index, index_to_action, sample_states
         sample_states = list(state_to_index.keys())[:5]
     for state in sample_states:
         print_policy_for_state(state, q_table, state_to_index, index_to_action, n=n)
+
+def print_policy_examples(q_table, state_to_index, index_to_action, example_states, n=5):
+    """
+    Print optimal and top-N actions for a list of example states.
+    """
+    for state in example_states:
+        print(f"\n--- Policy for State: {state} ---")
+        optimal_action = get_optimal_action_for_state(state, q_table, state_to_index, index_to_action)
+        print(f"Optimal action: {optimal_action}")
+        top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=n)
+        print("Top actions:")
+        if top_actions is not None:
+            for action, q_value in top_actions:
+                print(f"  {action}: {q_value:.4f}")
+        else:
+            print("  No actions available for this state.")
+
+if __name__ == "__main__":
+    from ql_setup import define_state_space, define_action_space
+    from ql_training import train_q_learning_agent
+    from plot_utils import plot_line_chart
+
+    # --- Training ---
+    q_table, rewards, max_q_values, policy_evolution = train_q_learning_agent(
+        num_episodes=200,
+        max_steps_per_episode=30,
+        learning_rate=0.1,
+        discount_factor=0.9,
+        epsilon=1.0,
+        epsilon_decay_rate=0.005,
+        min_epsilon=0.05,
+        reward_mode="state",
+        progress_interval=20
+    )
+
+    # --- Analysis and Visualization ---
+    print("\n--- Learned Policy Examples ---")
+    states, state_to_index, index_to_state, num_states = define_state_space()
+    actions, action_to_index, index_to_action, num_actions = define_action_space()
+
+    example_states = [
+        (3, 5, 1, 'D'),  # Mid-cognitive load, High engagement, Task Completed, Previous task D -> Next should be A
+        (1, 1, 0, 'A'),  # Low cognitive load, Low engagement, Task Not Completed, Previous task A -> Next should be B
+        (5, 3, 0, 'B'),  # High cognitive load, Mid engagement, Task Not Completed, Previous task B -> Next should be C
+        (2, 4, 1, 'C'),  # Low-ish cognitive load, High engagement, Task Completed, Previous task C -> Next should be D
+        (3, 3, 0, 'A')   # The starting state used in training, Previous task A -> Next should be B
+    ]
+
+    print_policy_examples(q_table, state_to_index, index_to_action, example_states, n=5)
+
+    # Plot learning curve
+    plot_line_chart(
+        x=list(range(1, len(rewards) + 1)),
+        y=[rewards],
+        xlabel='Episode',
+        ylabel='Total Reward',
+        title='Total Reward per Episode',
+        legend_labels=['Total Reward'],
+        show=True
+    )
+
+    # Plot Q-table heatmap
+    plot_q_table_heatmap(q_table)

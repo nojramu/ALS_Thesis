@@ -61,3 +61,49 @@ def save_models(models, out_dir='models', prefix='rf'):
     joblib.dump(reg, reg_path)
     joblib.dump(clf, clf_path)
     print(f"Models saved to {reg_path} and {clf_path}")
+
+if __name__ == "__main__":
+    # Example usage
+
+    from data_handling import load_csv, preprocess_data
+
+    # Path to your training CSV file
+    csv_path = "data/sample_training_data.csv"
+
+    # Define feature and target columns
+    feature_cols = [
+        'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+        'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+        'task_timed_out', 'time_before_hint_used'
+    ]
+    target_cols = ['cognitive_load', 'engagement_level']
+
+    # Load and preprocess data
+    df = load_csv(csv_path)
+    df = preprocess_data(df, feature_cols, is_training_data=True)
+
+    # Train models
+    reg, clf, features, metrics = train_models(df, feature_cols, target_cols)
+
+    # Example new data for prediction
+    import pandas as pd
+    new_data = pd.DataFrame([{
+        'engagement_rate': 0.8,
+        'time_on_task_s': 450,
+        'hint_ratio': 0.5,
+        'interaction_count': 12,
+        'task_completed': 1,
+        'quiz_score': 92,
+        'difficulty': 3,
+        'error_rate': 0.2,
+        'task_timed_out': 0,
+        'time_before_hint_used': 120
+    }])
+
+    # Predict using trained models
+    reg_pred, clf_pred = predict((reg, clf), features, new_data)
+    print("Predicted Cognitive Load:", reg_pred)
+    print("Predicted Engagement Level:", clf_pred)
+
+    # Save models
+    save_models((reg, clf))

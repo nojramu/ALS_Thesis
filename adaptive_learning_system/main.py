@@ -1,57 +1,110 @@
-if __name__ == "__main__":
-    from ql_setup import define_state_space, define_action_space
-    from ql_training import train_q_learning_agent
-    from ql_analysis import get_optimal_action_for_state, get_top_n_actions_for_state, plot_q_table_heatmap
-    from plot_utils import plot_line_chart
+# main.py (pseudocode)
+from data_handling import load_csv, preprocess_data, save_csv
+from random_forest import train_models, predict, save_models
+from kalman_filter import add_kalman_column
+from simpsons_rule import simpsons_rule, discretize_simpsons_result
+from ql_setup import define_state_space, define_action_space, initialize_q_table
+from ql_training import train_q_learning_agent
+from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
+from ql_analysis import plot_q_table_heatmap, print_policy_summary, plot_learning_curve
+from plot_utils import plot_line_chart
 
-    # --- Training ---
-    q_table, rewards, max_q_values, policy_evolution = train_q_learning_agent(
-        num_episodes=200,
-        max_steps_per_episode=30,
-        learning_rate=0.1,
-        discount_factor=0.9,
-        epsilon=1.0,
-        epsilon_decay_rate=0.005,
-        min_epsilon=0.05,
-        reward_mode="state",
-        progress_interval=20
-    )
+# 1. Load and preprocess data
+feature_cols = [
+    'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+    'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+    'task_timed_out', 'time_before_hint_used'
+]
+target_cols = ['cognitive_load', 'engagement_level']
 
-    # --- Analysis and Visualization ---
-    print("\n--- Learned Policy Examples ---")
-    states, state_to_index, index_to_state, num_states = define_state_space()
-    actions, action_to_index, index_to_action, num_actions = define_action_space()
+df = load_csv("data/sample_training_data.csv")
+df = preprocess_data(df, feature_cols, is_training_data=True)
 
-    example_states = [
-        (3, 5, 1, 'D'),  # Mid-cognitive load, High engagement, Task Completed, Previous task D -> Next should be A
-        (1, 1, 0, 'A'),  # Low cognitive load, Low engagement, Task Not Completed, Previous task A -> Next should be B
-        (5, 3, 0, 'B'),  # High cognitive load, Mid engagement, Task Not Completed, Previous task B -> Next should be C
-        (2, 4, 1, 'C'),  # Low-ish cognitive load, High engagement, Task Completed, Previous task C -> Next should be D
-        (3, 3, 0, 'A')   # The starting state used in training, Previous task A -> Next should be B
-    ]
+# 2. Train Random Forest models
+reg, clf, features, metrics = train_models(df, feature_cols, target_cols)
 
-    for state in example_states:
-        print(f"\n--- Policy for State: {state} ---")
-        optimal_action = get_optimal_action_for_state(state, q_table, state_to_index, index_to_action)
-        print(f"Optimal action: {optimal_action}")
-        top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5)
-        print("Top actions:")
-        if top_actions is not None:
-            for action, q_value in top_actions:
-                print(f"  {action}: {q_value:.4f}")
-        else:
-            print("  No actions available for this state.")
+# 3. Predict on new data, smooth with Kalman, integrate with Simpson
+reg_pred, clf_pred = predict((reg, clf), features, df)
+df['predicted_cognitive_load'] = reg_pred
+df['predicted_engagement_level'] = clf_pred
 
-    # Plot learning curve
-    plot_line_chart(
-        x=list(range(1, len(rewards) + 1)),
-        y=[rewards],
-        xlabel='Episode',
-        ylabel='Total Reward',
-        title='Total Reward per Episode',
-        legend_labels=['Total Reward'],
-        show=True
-    )
+# Visualization: Random Forest predictions (scatter plot)
+plot_line_chart(
+    x=df.index,
+    y=[df['predicted_cognitive_load'], df['predicted_engagement_level']],
+    xlabel="Index",
+    ylabel="Predicted Values",
+    title="Random Forest Predictions",
+    legend_labels=["Cognitive Load", "Engagement Level"],
+    save_path="image/rf_predictions.png",
+    show=False
+)
 
-    # Plot Q-table heatmap
-    plot_q_table_heatmap(q_table)
+df = add_kalman_column(df, col='predicted_cognitive_load', new_col='smoothed_cognitive_load')
+
+# Visualization: Kalman Filter smoothing
+plot_line_chart(
+    x=df.index,
+    y=[df['predicted_cognitive_load'], df['smoothed_cognitive_load']],
+    xlabel="Index",
+    ylabel="Cognitive Load",
+    title="Kalman Filter Smoothing",
+    legend_labels=["Predicted", "Smoothed"],
+    save_path="image/kalman_smoothing.png",
+    show=False
+)
+
+h = 3  # Step size (adjust as appropriate for your data)
+integral = simpsons_rule(df['smoothed_cognitive_load'], h)
+bucket = discretize_simpsons_result(integral)
+
+# Visualization: Simpson's Rule integration (bar for bucket)
+plot_line_chart(
+    x=[0],
+    y=[integral],
+    xlabel="Integration",
+    ylabel="Integral Value",
+    title="Simpson's Rule Integral",
+    legend_labels=["Integral"],
+    save_path="image/simpsons_integral.png",
+    show=False
+)
+
+# 4. RL: Setup and train Q-learning
+states, state_to_index, index_to_state, num_states = define_state_space()
+actions, action_to_index, index_to_action, num_actions = define_action_space()
+q_table = initialize_q_table(num_states, num_actions)
+
+num_episodes = 1000
+alpha = 0.1
+gamma = 0.99
+epsilon = 0.1
+
+q_table, rewards, _, _ = train_q_learning_agent(
+    num_episodes=num_episodes,
+    learning_rate=alpha,
+    discount_factor=gamma,
+    epsilon=epsilon
+)
+
+# Visualization: Q-table heatmap
+plot_q_table_heatmap(q_table, filename="image/qtable_heatmap.png", show=False)
+
+# Visualization: Learning curve
+plot_learning_curve(
+    rewards,
+    window=10,
+    filename="image/learning_curve.png",
+    show=False
+)
+
+# 5. Monitoring and feedback
+chart_state = initialize_control_chart()
+engagement_rate = df['predicted_engagement_level'].mean() / df['predicted_engagement_level'].max()
+add_engagement_data(chart_state, engagement_rate)
+if check_for_engagement_anomaly(chart_state):
+    # Update Q-table, adjust difficulty, etc.
+    pass
+
+# 6. Print policy summary
+print_policy_summary(q_table, state_to_index, index_to_action)

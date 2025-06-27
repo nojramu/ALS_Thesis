@@ -103,3 +103,29 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         bucket_index = int(np.clip(bucket_index_category[0], 0, num_buckets - 1))
 
     return bucket_index + 1  # Return 1-based bucket index
+
+if __name__ == "__main__":
+    from data_handling import load_csv
+
+    # Load the CSV with smoothed cognitive load using data_handling utility
+    df = load_csv("data/sample_predictions_with_smoothed.csv")
+
+    if df is None:
+        print("Failed to load data. Exiting.")
+    else:
+        # Use the smoothed cognitive load column
+        smoothed_cognitive_load = df['smoothed_cognitive_load'].values
+        h = 3  # Step size (adjust as appropriate for your data)
+
+        # Apply Simpson's Rule
+        integral = simpsons_rule(smoothed_cognitive_load, h)
+        print(f"Simpson's Rule Integral (smoothed): {integral}")
+
+        # Example: Discretize the integral into 5 buckets
+        historical_integrals = None  # Or load/compute as needed
+        bucket_5 = discretize_simpsons_result(integral, num_buckets=5, historical_integral_values=historical_integrals)
+        print(f"Discretized Bucket (5 buckets): {bucket_5}")
+
+        # Example: Discretize the integral into 7 buckets
+        bucket_7 = discretize_simpsons_result(integral, num_buckets=7, historical_integral_values=historical_integrals)
+        print(f"Discretized Bucket (7 buckets): {bucket_7}")
