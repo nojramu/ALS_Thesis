@@ -80,7 +80,6 @@
         - Simulation controls (step/run)
         - Live visualizations (plots, tables)
         - Save/load state options
-    - Modular separation of frontend (layout/UI) and backend (callbacks/logic).
 
 ### Full Pipeline Integration
 - Integrate all modules for seamless data flow from upload to adaptive feedback.

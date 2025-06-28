@@ -1,12 +1,14 @@
 import os
 import numpy as np
-from ql_setup import is_valid_state
+from system.ql_setup import is_valid_state
+from system.ql_core import get_next_task_type_in_sequence
+from system.plot_utils import (
+    plot_line_chart,
+    plot_bar_chart,
+    plotly_qtable_heatmap,
+    plot_visit_counts_heatmap,
+)
 import matplotlib.pyplot as plt
-import seaborn as sns
-from plot_utils import plotly_qtable_heatmap
-from ql_core import get_next_task_type_in_sequence
-import plotly.graph_objs as go
-import plotly.express as px
 
 def get_optimal_action_for_state(current_state, q_table, state_to_index, index_to_action, action_to_index):
     """
@@ -65,24 +67,23 @@ def print_policy_for_state(current_state, q_table, state_to_index, index_to_acti
 
 def plot_q_table_heatmap(q_table, filename="image/qtable_heatmap.png", show=False):
     """
-    Plots a heatmap of the Q-table using seaborn and saves it as an image.
+    Plots a heatmap of the Q-table using plot_utils (matplotlib).
     """
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(q_table, cmap="viridis")
-    plt.title("Q-table Heatmap")
-    plt.xlabel("Action Index")
-    plt.ylabel("State Index")
-    plt.tight_layout()
-    plt.savefig(filename)
-    if show:
-        plt.show()
-    plt.close()
+    plotly_qtable_heatmap(q_table, save_path=filename, show=show)
 
-def plot_q_table_heatmap_plotly(q_table, save_path=None, show=False):
+def plot_q_table_heatmap_matplotlib(q_table, filename="image/qtable_heatmap.png", show=False):
     """
-    Interactive Q-table heatmap using Plotly.
+    Optionally, if you want a matplotlib version, call plot_utils.plot_bar_chart or similar.
     """
-    plotly_qtable_heatmap(q_table, save_path=save_path, show=show)
+    plot_bar_chart(
+        x=np.arange(q_table.shape[1]),
+        y=np.mean(q_table, axis=0),
+        xlabel="Action Index",
+        ylabel="Mean Q-value",
+        title="Q-table Mean Q-value per Action",
+        save_path=filename,
+        show=show
+    )
 
 def extract_policy(q_table, state_to_index, index_to_action):
     """
@@ -119,23 +120,19 @@ def load_q_table_snapshot(filename):
 
 def plot_learning_curve(rewards, window=10, filename="image/learning_curve.png", show=False):
     """
-    Plot the learning curve and moving average.
+    Plot the learning curve and moving average using plot_utils.
     """
     rewards = np.array(rewards)
-    plt.figure(figsize=(10, 5))
-    plt.plot(rewards, label="Reward per Episode")
-    if len(rewards) >= window:
-        moving_avg = np.convolve(rewards, np.ones(window)/window, mode='valid')
-        plt.plot(range(window-1, len(rewards)), moving_avg, label=f"{window}-episode Moving Avg")
-    plt.xlabel("Episode")
-    plt.ylabel("Total Reward")
-    plt.title("Learning Curve")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(filename)
-    if show:
-        plt.show()
-    plt.close()
+    plot_line_chart(
+        x=list(range(1, len(rewards) + 1)),
+        y=[rewards],
+        xlabel='Episode',
+        ylabel='Total Reward',
+        title='Total Reward per Episode',
+        legend_labels=['Total Reward'],
+        save_path=filename,
+        show=show
+    )
 
 def learning_curve_stats(rewards):
     """
@@ -181,7 +178,6 @@ def print_policy_examples(q_table, state_to_index, index_to_action, action_to_in
 if __name__ == "__main__":
     from ql_setup import define_state_space, define_action_space
     from ql_training import train_q_learning_agent
-    from plot_utils import plot_line_chart
 
     # --- Training ---
     q_table, rewards, max_q_values, policy_evolution = train_q_learning_agent(
