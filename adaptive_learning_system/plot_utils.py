@@ -7,6 +7,8 @@ from PIL import Image
 import plotly.graph_objs as go
 import plotly.express as px
 
+# --- Matplotlib Utilities ---
+
 def plot_line_chart(
     x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_labels=None,
     save_path=None, show=False
@@ -141,11 +143,11 @@ def save_figure_to_image_folder(fig, prefix='plot', image_dir='image', custom_na
     print(f"Plot saved to {save_path}")
     return save_path
 
-# --- Plotly and Dash Integration ---
+# --- Plotly Utilities ---
 
 def plotly_line_chart(x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_labels=None, save_path=None, show=False):
     """
-    Plots a line chart using Plotly.
+    Plots a line chart using Plotly and optionally saves or returns the figure.
     """
     fig = go.Figure()
     if isinstance(y, list) and legend_labels:
@@ -160,6 +162,19 @@ def plotly_line_chart(x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_l
     if save_path:
         fig.write_image(save_path)
         print(f"Plotly plot saved to {save_path}")
+    if show:
+        fig.show()
+    return fig
+
+def plotly_bar_chart(x, y, xlabel='X', ylabel='Y', title='Bar Chart', save_path=None, show=False):
+    """
+    Plots a bar chart using Plotly and optionally saves or returns the figure.
+    """
+    fig = go.Figure([go.Bar(x=x, y=y)])
+    fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
+    if save_path:
+        fig.write_image(save_path)
+        print(f"Plotly bar chart saved to {save_path}")
     if show:
         fig.show()
     return fig
@@ -196,23 +211,30 @@ def plotly_qtable_heatmap(q_table, save_path=None, show=False):
         fig.show()
     return fig
 
-def launch_dash_heatmap_app(q_table):
+def plot_visit_counts_heatmap(visit_counts, save_path="image/state_action_visit_counts.png", use_plotly=False, show=False):
     """
-    Launches a Dash app to interactively visualize the Q-table heatmap.
+    Plots a heatmap of state-action visit counts using either Matplotlib or Plotly.
     """
-    import dash
-    from dash import dcc, html
-    import plotly.express as px
-
-    app = dash.Dash(__name__)
-    fig = px.imshow(q_table, color_continuous_scale='Viridis', aspect='auto',
-                    labels=dict(x="Action Index", y="State Index", color="Q-value"),
-                    title="Q-table Heatmap")
-
-    app.layout = html.Div([
-        html.H1("Q-table Heatmap"),
-        dcc.Graph(figure=fig)
-    ])
-
-    print("Dash app running at http://127.0.0.1:8050/")
-    app.run_server(debug=True, use_reloader=False)
+    if use_plotly:
+        plotly_heatmap(
+            z=visit_counts,
+            xlabel="Action Index",
+            ylabel="State Index",
+            title="State-Action Visit Counts (Unvisited = 0)",
+            save_path=save_path,
+            show=show,
+            colorbar_title="Visit Count"
+        )
+    else:
+        plt.figure(figsize=(12, 8))
+        plt.imshow(visit_counts, aspect='auto', cmap='viridis')
+        plt.colorbar(label='Visit Count')
+        plt.xlabel("Action Index")
+        plt.ylabel("State Index")
+        plt.title("State-Action Visit Counts (Unvisited = 0)")
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path)
+        if show:
+            plt.show()
+        plt.close()
+        print(f"State-action visit counts heatmap saved to {save_path}")

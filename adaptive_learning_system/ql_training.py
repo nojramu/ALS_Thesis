@@ -1,15 +1,18 @@
 import numpy as np
+import random
 from ql_setup import is_valid_state
 from ql_core import epsilon_greedy_action_selection, update_q_table
 from ql_simulator import simulate_next_state_and_reward
+from plot_utils import plot_visit_counts_heatmap
+import matplotlib.pyplot as plt
 
 def train_q_learning_agent(
     num_episodes=100,
     max_steps_per_episode=20,
     learning_rate=0.1,
     discount_factor=0.9,
-    epsilon=0.2,
-    epsilon_decay_rate=0.0,
+    epsilon=1.0,  # Start with full exploration
+    epsilon_decay_rate=0.001,  # Decay slowly
     min_epsilon=0.01,
     reward_mode="state",
     progress_interval=10,
@@ -28,6 +31,7 @@ def train_q_learning_agent(
     states, state_to_index, index_to_state, num_states = define_state_space()
     actions, action_to_index, index_to_action, num_actions = define_action_space()
     q_table = initialize_q_table(num_states, num_actions)
+    visit_counts = np.zeros_like(q_table)
     total_rewards_per_episode = []
     max_q_values_over_time = []
     policy_evolution = []
@@ -36,7 +40,7 @@ def train_q_learning_agent(
     print(f"\nStarting Q-Learning training for {num_episodes} episodes...")
 
     for episode in range(num_episodes):
-        starting_state = (3, 3, 0, 'A')  # Example fixed valid starting state
+        starting_state = random.choice(list(state_to_index.keys()))
         if not is_valid_state(starting_state, state_to_index):
             print(f"Episode {episode}: Invalid starting state {starting_state}. Skipping episode.")
             total_rewards_per_episode.append(0)
@@ -65,6 +69,9 @@ def train_q_learning_agent(
                 learning_rate, discount_factor, state_to_index, action_to_index
             )
 
+            # Update visit count for the state-action pair
+            visit_counts[state_to_index[current_state], action_to_index[action]] += 1
+
             total_episode_reward += reward
             current_state = next_state
 
@@ -85,6 +92,9 @@ def train_q_learning_agent(
             print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_episode_reward:.2f}, Epsilon: {current_epsilon:.4f}")
 
     print("\nQ-Learning training finished.")
+
+    plot_visit_counts_heatmap(visit_counts)
+
     return q_table, total_rewards_per_episode, max_q_values_over_time, policy_evolution
 
 def test_q_learning():
@@ -96,8 +106,8 @@ def test_q_learning():
         max_steps_per_episode=20,
         learning_rate=0.1,
         discount_factor=0.9,
-        epsilon=0.2,
-        epsilon_decay_rate=0.001,
+        epsilon=1.0,  # Start with full exploration
+        epsilon_decay_rate=0.001,  # Decay slowly
         min_epsilon=0.01,
         reward_mode="state",
         progress_interval=10

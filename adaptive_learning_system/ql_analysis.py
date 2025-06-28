@@ -4,28 +4,52 @@ from ql_setup import is_valid_state
 import matplotlib.pyplot as plt
 import seaborn as sns
 from plot_utils import plotly_qtable_heatmap
+from ql_core import get_next_task_type_in_sequence
+import plotly.graph_objs as go
+import plotly.express as px
 
-def get_optimal_action_for_state(current_state, q_table, state_to_index, index_to_action):
+def get_optimal_action_for_state(current_state, q_table, state_to_index, index_to_action, action_to_index):
     """
-    Returns the optimal action for a given state based on the Q-table.
+    Returns the optimal action for a given state based on the Q-table,
+    enforcing the task type sequence.
     """
     if not is_valid_state(current_state, state_to_index):
         return None
     state_index = state_to_index[current_state]
-    optimal_action_index = np.argmax(q_table[state_index, :])
+    prev_task_type = current_state[3]
+    required_task_type = get_next_task_type_in_sequence(prev_task_type)
+    # Filter valid actions
+    valid_action_indices = [
+        idx for idx, action in index_to_action.items()
+        if action[0] == required_task_type
+    ]
+    if not valid_action_indices:
+        return None
+    valid_q_values = q_table[state_index, valid_action_indices]
+    optimal_idx_in_valid = np.argmax(valid_q_values)
+    optimal_action_index = valid_action_indices[optimal_idx_in_valid]
     return index_to_action[optimal_action_index]
 
-def get_top_n_actions_for_state(current_state, q_table, state_to_index, index_to_action, n=5):
+def get_top_n_actions_for_state(current_state, q_table, state_to_index, index_to_action, action_to_index, n=5):
     """
-    Returns the top-n actions and their Q-values for a given state.
+    Returns the top-n actions and their Q-values for a given state,
+    enforcing the task type sequence.
     """
     if not is_valid_state(current_state, state_to_index):
         return None
     state_index = state_to_index[current_state]
-    q_values = q_table[state_index, :]
-    sorted_action_indices = np.argsort(q_values)[::-1]
-    top_n_action_indices = sorted_action_indices[:n]
-    return [(index_to_action[i], q_values[i]) for i in top_n_action_indices]
+    prev_task_type = current_state[3]
+    required_task_type = get_next_task_type_in_sequence(prev_task_type)
+    valid_action_indices = [
+        idx for idx, action in index_to_action.items()
+        if action[0] == required_task_type
+    ]
+    if not valid_action_indices:
+        return None
+    valid_q_values = q_table[state_index, valid_action_indices]
+    sorted_indices = np.argsort(valid_q_values)[::-1][:n]
+    top_n_action_indices = [valid_action_indices[i] for i in sorted_indices]
+    return [(index_to_action[i], q_table[state_index, i]) for i in top_n_action_indices]
 
 def print_policy_for_state(current_state, q_table, state_to_index, index_to_action, n=5):
     """
@@ -133,17 +157,22 @@ def print_policy_summary(q_table, state_to_index, index_to_action, sample_states
     for state in sample_states:
         print_policy_for_state(state, q_table, state_to_index, index_to_action, n=n)
 
-def print_policy_examples(q_table, state_to_index, index_to_action, example_states, n=5):
+def print_policy_examples(q_table, state_to_index, index_to_action, action_to_index, example_states, n=5):
     """
     Print optimal and top-N actions for a list of example states.
     """
     for state in example_states:
         print(f"\n--- Policy for State: {state} ---")
-        optimal_action = get_optimal_action_for_state(state, q_table, state_to_index, index_to_action)
-        print(f"Optimal action: {optimal_action}")
-        top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=n)
+        optimal_action = get_optimal_action_for_state(state, q_table, state_to_index, index_to_action, action_to_index)
+        if optimal_action is None:
+            prev_task_type = state[3]
+            required_task_type = get_next_task_type_in_sequence(prev_task_type)
+            print(f"No valid actions for required next task type '{required_task_type}' in this state.")
+        else:
+            print(f"Optimal action: {optimal_action}")
+        top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, action_to_index, n=n)
         print("Top actions:")
-        if top_actions is not None:
+        if top_actions is not None and len(top_actions) > 0:
             for action, q_value in top_actions:
                 print(f"  {action}: {q_value:.4f}")
         else:
@@ -180,7 +209,7 @@ if __name__ == "__main__":
         (3, 3, 0, 'A')   # The starting state used in training, Previous task A -> Next should be B
     ]
 
-    print_policy_examples(q_table, state_to_index, index_to_action, example_states, n=5)
+    print_policy_examples(q_table, state_to_index, index_to_action, action_to_index, example_states, n=5)
 
     # Plot learning curve
     plot_line_chart(
