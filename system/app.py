@@ -713,13 +713,13 @@ def handle_ql_test(n_clicks, simpson_level, engagement_level, completed, prev_ty
         html.Ul(top_actions_html)
     ])
 def shewhart_panel():
-    # Create buttons for engagement rates 0.0 to 1.0
+    # Create blue buttons for engagement rates 0.0 to 1.0
     rate_buttons = [
         dbc.Button(
             f"{v:.1f}",
             id={"type": "shewhart-rate-btn", "index": f"{v:.1f}"},
-            color="secondary",
-            outline=True,
+            color="primary",  # Blue
+            outline=False,
             size="sm",
             style={"marginRight": "4px", "marginBottom": "4px"}
         )
@@ -757,6 +757,9 @@ def shewhart_panel():
 )
 def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev, chart_state):
     import dash
+    import json
+    import re
+
     ctx = dash.callback_context
     if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
@@ -776,35 +779,46 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev
         return fig, notification, chart_state
 
     # Handle engagement rate button click
-    # Find which button was clicked by parsing the triggered prop_id
     if "shewhart-rate-btn" in triggered:
-        import json
-        btn_id = json.loads(triggered.split(".")[0])
-        engagement_rate = float(btn_id["index"])
+        # Extract the JSON part from the triggered string
+        match = re.match(r'(\{.*\})\.n_clicks', triggered)
+        if match:
+            btn_id = json.loads(match.group(1))
+            engagement_rate = float(btn_id["index"])
+        else:
+            raise dash.exceptions.PreventUpdate
     else:
         raise dash.exceptions.PreventUpdate
 
+    # Initialize or update chart state
     if not chart_state or 'window_size' not in chart_state:
         chart_state = initialize_control_chart(window_size=window_size)
     else:
         chart_state['window_size'] = window_size
 
+    # Append the engagement rate and update chart
     add_engagement_data(chart_state, engagement_rate, num_stddev=num_stddev)
     chart_data = get_control_chart_data(chart_state)
-    if not chart_data:
+    engagement_rates = chart_data.get("engagement_rates", [])
+    cl = chart_data.get("cl")
+    ucl = chart_data.get("ucl")
+    lcl = chart_data.get("lcl")
+    anomalies = chart_data.get("anomalies", [])
+
+    if not engagement_rates or cl is None or ucl is None or lcl is None:
         fig = go.Figure()
         notification = "Not enough data to plot control chart."
         return fig, notification, chart_state
 
-    x = list(range(len(chart_data['engagement_rates'])))
+    x = list(range(len(engagement_rates)))
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x, y=chart_data['engagement_rates'], mode='lines+markers', name='Engagement Rate'))
-    fig.add_trace(go.Scatter(x=x, y=[chart_data['cl']] * len(x), mode='lines', name='CL'))
-    fig.add_trace(go.Scatter(x=x, y=[chart_data['ucl']] * len(x), mode='lines', name='UCL'))
-    fig.add_trace(go.Scatter(x=x, y=[chart_data['lcl']] * len(x), mode='lines', name='LCL'))
-    if chart_data['anomalies']:
-        anomaly_x = [i for i in chart_data['anomalies']]
-        anomaly_y = [chart_data['engagement_rates'][i] for i in anomaly_x]
+    fig.add_trace(go.Scatter(x=x, y=engagement_rates, mode='lines+markers', name='Engagement Rate'))
+    fig.add_trace(go.Scatter(x=x, y=[cl] * len(x), mode='lines', name='CL'))
+    fig.add_trace(go.Scatter(x=x, y=[ucl] * len(x), mode='lines', name='UCL'))
+    fig.add_trace(go.Scatter(x=x, y=[lcl] * len(x), mode='lines', name='LCL'))
+    if anomalies:
+        anomaly_x = [i for i in anomalies]
+        anomaly_y = [engagement_rates[i] for i in anomaly_x]
         fig.add_trace(go.Scatter(x=anomaly_x, y=anomaly_y, mode='markers', marker=dict(color='red', size=12, symbol='x'), name='Anomaly'))
 
     fig.update_layout(
@@ -815,7 +829,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev
     )
 
     notification = ""
-    if chart_data['anomalies'] and chart_data['anomalies'][-1] == len(chart_data['engagement_rates']) - 1:
+    if anomalies and anomalies[-1] == len(engagement_rates) - 1:
         notification = html.Div("⚠️ Anomaly detected in the latest engagement rate!", style={"color": "red", "fontWeight": "bold"})
 
     return fig, notification, chart_state
@@ -827,6 +841,16 @@ def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action,
     q_values = q_table[state_idx]
     top_indices = q_values.argsort()[::-1][:n]
     return [(index_to_action[i], q_values[i]) for i in top_indices]
+
+def get_control_chart_data(chart_state):
+    # Defensive: always return a dict with all keys, even if empty
+    return {
+        "engagement_rates": chart_state.get("engagement_data", []),
+        "cl": chart_state.get("cl"),
+        "ucl": chart_state.get("ucl"),
+        "lcl": chart_state.get("lcl"),
+        "anomalies": chart_state.get("anomalies", [])
+    }
 
 if __name__ == "__main__":
     app.run(debug=True)
