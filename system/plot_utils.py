@@ -166,11 +166,11 @@ def plotly_line_chart(x, y, xlabel='X', ylabel='Y', title='Line Chart', legend_l
         fig.show()
     return fig
 
-def plotly_bar_chart(x, y, xlabel='X', ylabel='Y', title='Bar Chart', save_path=None, show=False):
+def plotly_bar_chart(x, y, xlabel='X', ylabel='Y', title='Bar Chart', color='blue', save_path=None, show=False):
     """
     Plots a bar chart using Plotly and optionally saves or returns the figure.
     """
-    fig = go.Figure([go.Bar(x=x, y=y)])
+    fig = go.Figure([go.Bar(x=x, y=y, marker_color=color)])
     fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
     if save_path:
         fig.write_image(save_path)

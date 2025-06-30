@@ -8,12 +8,12 @@ import os
 
 from data_handling import load_csv, preprocess_data
 from random_forest import train_models
-# from kalman_filter import add_kalman_column
-# from simpsons_rule import simpsons_rule, discretize_simpsons_result
-# # from ql_setup import define_state_space, define_action_space, initialize_q_table
-# from ql_training import train_q_learning_agent
-# from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
-from plot_utils import plot_line_chart
+from kalman_filter import add_kalman_column
+from simpsons_rule import simpsons_rule, discretize_simpsons_result
+from ql_setup import define_state_space, define_action_space, initialize_q_table
+from ql_training import train_q_learning_agent
+from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
+from plot_utils import plot_line_chart, plotly_bar_chart
 
 # --- App Initialization ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -26,7 +26,7 @@ rf_models = None
 features = None
 metrics = None
 q_table = None
-# chart_state = initialize_control_chart()
+chart_state = initialize_control_chart()
 simpsons_integral = None
 simpsons_bucket = None
 
@@ -35,10 +35,10 @@ sidebar = dbc.Nav(
     [
         dbc.NavLink("Preprocessing", href="/", active="exact"),
         dbc.NavLink("Random Forest", href="/rf", active="exact"),
-        # dbc.NavLink("Kalman Filter", href="/kalman", active="exact"),
-        # dbc.NavLink("Simpson's Rule", href="/simpson", active="exact"),
-        # dbc.NavLink("Q-Learning", href="/qlearning", active="exact"),
-        # dbc.NavLink("Shewhart Control", href="/shewhart", active="exact"),
+        dbc.NavLink("Kalman Filter", href="/kalman", active="exact"),
+        dbc.NavLink("Simpson's Rule", href="/simpson", active="exact"),
+        dbc.NavLink("Q-Learning", href="/qlearning", active="exact"),
+        dbc.NavLink("Shewhart Control", href="/shewhart", active="exact"),
         # dbc.NavLink("Visualization", href="/viz", active="exact"),
     ],
     vertical=True,
@@ -71,14 +71,14 @@ def display_page(pathname):
         return preprocessing_panel()
     elif pathname == "/rf":
         return rf_panel()
-    # elif pathname == "/kalman":
-    #     return kalman_panel()
-    # elif pathname == "/simpson":
-    #     return simpson_panel()
-    # elif pathname == "/qlearning":
-    #     return qlearning_panel()
-    # elif pathname == "/shewhart":
-    #     return shewhart_panel()
+    elif pathname == "/kalman":
+        return kalman_panel()
+    elif pathname == "/simpson":
+            return simpson_panel()
+    elif pathname == "/qlearning":
+        return qlearning_panel()
+    elif pathname == "/shewhart":
+        return shewhart_panel()
     # elif pathname == "/viz":
     #     return viz_panel()
     else:
@@ -99,7 +99,7 @@ def preprocessing_panel():
             },
             multiple=False
         ),
-        html.Button("Load Sample Data", id="load-default-btn", n_clicks=0),
+        dbc.Button("Load Sample Data", id="load-default-btn", n_clicks=0, color="primary", className="mb-2"),
         html.Div(id="preprocessing-output"),
     ])
 
@@ -207,11 +207,54 @@ def handle_preprocessing(uploaded_contents, uploaded_filename, _):
     return ""
 
 def rf_panel():
+    # Sample values for the input fields
+    sample = {
+        'engagement_rate': 0.8,         # 0.0 - 1.0
+        'time_on_task_s': 450,          # positive integer (seconds)
+        'hint_ratio': 0.5,              # 0.0 - 1.0
+        'interaction_count': 12,        # positive integer
+        'task_completed': 1,            # 0 or 1
+        'quiz_score': 92,               # 0 - 100
+        'difficulty': 3,                # positive integer (e.g., 1-10)
+        'error_rate': 0.2,              # 0.0 - 1.0
+        'task_timed_out': 0,            # 0 or 1
+        'time_before_hint_used': 120    # positive integer (seconds)
+    }
+    feature_notes = {
+        'engagement_rate': "(0.0 - 1.0)",
+        'time_on_task_s': "(positive integer, seconds)",
+        'hint_ratio': "(0.0 - 1.0)",
+        'interaction_count': "(positive integer)",
+        'task_completed': "(0 or 1)",
+        'quiz_score': "(0 - 100)",
+        'difficulty': "(positive integer, e.g. 1-10)",
+        'error_rate': "(0.0 - 1.0)",
+        'task_timed_out': "(0 or 1)",
+        'time_before_hint_used': "(positive integer, seconds)"
+    }
+    feature_inputs = [
+        dbc.Row([
+            dbc.Col(html.Label(f"{f} {feature_notes[f]}"), width=5),
+            dbc.Col(dcc.Input(
+                id=f"rf-test-{f}",
+                type="number",
+                value=sample[f],
+                debounce=True,
+                style={"width": "100%"}
+            ), width=7)
+        ], className="mb-2")
+        for f in sample
+    ]
     return html.Div([
         html.H2("Random Forest"),
         html.P("Click 'Train Models' after loading and preprocessing data."),
-        html.Button("Train Models", id="train-rf-btn", n_clicks=0),
+        dbc.Button("Train Models", id="train-rf-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="rf-output"),
+        html.Hr(),
+        html.H4("Test Model with Custom Input"),
+        html.Div(feature_inputs),
+        dbc.Button("Test", id="rf-test-btn", n_clicks=0, color="primary", className="mt-2"),
+        html.Div(id="rf-test-output", className="mt-3")
     ])
 
 @app.callback(
@@ -243,30 +286,24 @@ def handle_rf_train(n_clicks):
 
     # Plot feature importance for regression model
     reg_importance = reg.feature_importances_
-    reg_fig = go.Figure([go.Bar(
+    reg_fig = plotly_bar_chart(
         x=feature_cols,
         y=reg_importance,
-        marker_color='indigo'
-    )])
-    reg_fig.update_layout(
+        xlabel="Feature",
+        ylabel="Importance",
         title="Random Forest Feature Importance (Regression)",
-        xaxis_title="Feature",
-        yaxis_title="Importance",
-        yaxis=dict(range=[0, max(reg_importance)*1.1])
+        color='indigo'  # or any color you want
     )
 
     # Plot feature importance for classification model
     clf_importance = clf.feature_importances_
-    clf_fig = go.Figure([go.Bar(
+    clf_fig = plotly_bar_chart(
         x=feature_cols,
         y=clf_importance,
-        marker_color='darkgreen'
-    )])
-    clf_fig.update_layout(
+        xlabel="Feature",
+        ylabel="Importance",
         title="Random Forest Feature Importance (Classification)",
-        xaxis_title="Feature",
-        yaxis_title="Importance",
-        yaxis=dict(range=[0, max(clf_importance)*1.1])
+        color='green'  # or any color you want
     )
 
     return html.Div([
@@ -279,90 +316,261 @@ def handle_rf_train(n_clicks):
         dcc.Graph(figure=clf_fig)
     ])
 
-# def kalman_panel():
-#     return html.Div([
-#         html.H2("Kalman Filter"),
-#         html.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0),
-#         html.Div(id="kalman-output"),
-#     ])
+@app.callback(
+    Output("rf-test-output", "children"),
+    Input("rf-test-btn", "n_clicks"),
+    [State(f"rf-test-{f}", "value") for f in [
+        'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+        'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+        'task_timed_out', 'time_before_hint_used'
+    ]],
+    prevent_initial_call=True
+)
+def handle_rf_test(n_clicks, *values):
+    global rf_models, features
+    feature_cols = [
+        'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+        'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+        'task_timed_out', 'time_before_hint_used'
+    ]
+    if rf_models is None:
+        return html.Div("Please train the models first.")
+    # Prepare input DataFrame
+    import pandas as pd
+    input_dict = dict(zip(feature_cols, values))
+    new_data = pd.DataFrame([input_dict])
+    try:
+        from random_forest import predict
+        reg_pred, clf_pred = predict(rf_models, feature_cols, new_data)
+        return html.Div([
+            html.P(f"Predicted Cognitive Load: {reg_pred[0]:.2f}"),
+            html.P(f"Predicted Engagement Level: {int(clf_pred[0])}")
+        ])
+    except Exception as e:
+        return html.Div(f"Prediction failed: {e}")
+def kalman_panel():
+    import pandas as pd
+    from dash.dash_table import DataTable
 
-# @app.callback(
-#     Output("kalman-output", "children"),
-#     Input("kalman-btn", "n_clicks"),
-# )
-# def handle_kalman(_):
-#     global df_global
-#     if df_global is None or "predicted_cognitive_load" not in df_global.columns:
-#         return html.Div("Run Random Forest prediction first.")
-#     df = add_kalman_column(df_global, col="predicted_cognitive_load", new_col="smoothed_cognitive_load")
-#     df_global["smoothed_cognitive_load"] = df["smoothed_cognitive_load"]
-#     fig = px.line(df, y=["predicted_cognitive_load", "smoothed_cognitive_load"], title="Kalman Smoothing")
-#     return dcc.Graph(figure=fig)
+    # UI for uploading or loading predictions
+    upload_section = html.Div([
+        dcc.Upload(
+            id="upload-predictions",
+            children=html.Div(["Drag and Drop or ", html.A("Select CSV File")]),
+            style={
+                "width": "100%", "height": "60px", "lineHeight": "60px",
+                "borderWidth": "1px", "borderStyle": "dashed", "borderRadius": "5px",
+                "textAlign": "center", "margin": "10px"
+            },
+            multiple=False
+        ),
+        dbc.Button("Load Sample Predictions", id="load-sample-pred-btn", n_clicks=0, color="primary", className="mb-2"),
+        html.Div(id="kalman-pred-table")
+    ])
 
-# def simpson_panel():
-#     return html.Div([
-#         html.H2("Simpson's Rule"),
-#         html.Button("Integrate Cognitive Load", id="simpson-btn", n_clicks=0),
-#         html.Div(id="simpson-output"),
-#     ])
+    return html.Div([
+        html.H2("Kalman Filter"),
+        html.P("Add your predictions or load sample predictions to proceed."),
+        upload_section,
+        html.Br(),
+        dbc.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0, color="primary", className="mt-2"),
+        html.Div(id="kalman-output"),
+    ])
 
-# @app.callback(
-#     Output("simpson-output", "children"),
-#     Input("simpson-btn", "n_clicks"),
-# )
-# def handle_simpson(_):
-#     global df_global, simpsons_integral, simpsons_bucket
-#     if df_global is None or "smoothed_cognitive_load" not in df_global.columns:
-#         return html.Div("Apply Kalman filter first.")
-#     h = 3
-#     simpsons_integral = simpsons_rule(df_global["smoothed_cognitive_load"], h)
-#     simpsons_bucket = discretize_simpsons_result(simpsons_integral)
-#     return html.Div([
-#         html.P(f"Simpson's Integral: {simpsons_integral:.2f}"),
-#         html.P(f"Discretized Bucket: {simpsons_bucket}")
-#     ])
+@app.callback(
+    Output("kalman-pred-table", "children"),
+    Input("upload-predictions", "contents"),
+    State("upload-predictions", "filename"),
+    Input("load-sample-pred-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def handle_kalman_predictions(uploaded_contents, uploaded_filename, n_clicks_sample):
+    import pandas as pd
+    from dash.dash_table import DataTable
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return ""
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
-# def qlearning_panel():
-#     return html.Div([
-#         html.H2("Q-Learning"),
-#         html.Button("Train Q-Learning Agent", id="qlearn-btn", n_clicks=0),
-#         html.Div(id="qlearn-output"),
-#     ])
+    if trigger == "upload-predictions" and uploaded_contents:
+        _, content_string = uploaded_contents.split(",")
+        import base64, io
+        decoded = base64.b64decode(content_string)
+        df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+        table = DataTable(
+            data=[{str(k): v for k, v in row.items()} for row in df.head(10).to_dict("records")],
+            columns=[{"name": i, "id": i} for i in df.columns],
+            page_size=10,
+            style_table={
+                'overflowX': 'auto',
+                'overflowY': 'auto',
+                'maxHeight': '400px',
+                'minWidth': '100%',
+                'maxWidth': '100%',
+                'margin': '0 auto',
+                'resize': 'both'
+            },
+            style_cell={
+                'minWidth': '120px', 'width': '120px', 'maxWidth': '180px',
+                'whiteSpace': 'normal',
+                'textAlign': 'left'
+            }
+        )
+        return html.Div([
+            html.H5(f"Uploaded: {uploaded_filename}"),
+            table
+        ])
+    elif trigger == "load-sample-pred-btn":
+        sample_pred_path = "data/sample_predictions.csv"
+        try:
+            df = pd.read_csv(sample_pred_path)
+        except Exception as e:
+            return html.Div([html.P(f"Failed to load sample predictions: {e}")])
+        table = DataTable(
+            data=[{str(k): v for k, v in row.items()} for row in df.head(10).to_dict("records")],
+            columns=[{"name": i, "id": i} for i in df.columns],
+            page_size=10,
+            style_table={
+                'overflowX': 'auto',
+                'overflowY': 'auto',
+                'maxHeight': '400px',
+                'minWidth': '100%',
+                'maxWidth': '100%',
+                'margin': '0 auto',
+                'resize': 'both'
+            },
+            style_cell={
+                'minWidth': '120px', 'width': '120px', 'maxWidth': '180px',
+                'whiteSpace': 'normal',
+                'textAlign': 'left'
+            }
+        )
+        return html.Div([
+            html.H5("Loaded sample predictions"),
+            table
+        ])
+    return ""
 
-# @app.callback(
-#     Output("qlearn-output", "children"),
-#     Input("qlearn-btn", "n_clicks"),
-# )
-# def handle_qlearning(_):
-#     global q_table
-#     q_table, _, *_ = train_q_learning_agent(num_episodes=100, max_steps_per_episode=20)
-#     return html.Div([
-#         html.P("Q-Learning training complete."),
-#         html.P(f"Final Q-table shape: {q_table.shape}")
-#     ])
+@app.callback(
+    Output("kalman-output", "children"),
+    Input("kalman-btn", "n_clicks"),
+    State("kalman-pred-table", "children"),
+    prevent_initial_call=True
+)
+def handle_kalman(n_clicks, pred_table_children):
+    global df_global
+    import pandas as pd
+    from plotly.graph_objs import Figure
+    from kalman_filter import add_kalman_column
 
-# def shewhart_panel():
-#     return html.Div([
-#         html.H2("Shewhart Control"),
-#         html.Button("Add Engagement Data", id="shewhart-btn", n_clicks=0),
-#         html.Div(id="shewhart-output"),
-#     ])
+    if not pred_table_children:
+        return html.Div("Please upload or load predictions first.")
 
-# @app.callback(
-#     Output("shewhart-output", "children"),
-#     Input("shewhart-btn", "n_clicks"),
-# )
-# def handle_shewhart(_):
-#     global chart_state, df_global
-#     if df_global is None or "predicted_engagement_level" not in df_global.columns:
-#         return html.Div("Run Random Forest prediction first.")
-#     engagement_rate = df_global["predicted_engagement_level"].mean() / df_global["predicted_engagement_level"].max()
-#     add_engagement_data(chart_state, engagement_rate)
-#     anomaly = check_for_engagement_anomaly(chart_state)
-#     return html.Div([
-#         html.P(f"Engagement Rate: {engagement_rate:.2f}"),
-#         html.P(f"Anomaly Detected: {'Yes' if anomaly else 'No'}")
-#     ])
+    sample_pred_path = "data/sample_predictions.csv"
+    try:
+        df = pd.read_csv(sample_pred_path)
+    except Exception as e:
+        return html.Div([f"Failed to load predictions: {e}"])
+
+    try:
+        df = add_kalman_column(df, col="cognitive_load", new_col="smoothed_cognitive_load")
+        df_global = df  # <-- Save to global so Simpson panel can access
+    except Exception as e:
+        return html.Div([f"Kalman filter failed: {e}"])
+
+    import plotly.graph_objs as go
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["cognitive_load"],
+        mode="lines+markers", name="Original Cognitive Load"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["smoothed_cognitive_load"],
+        mode="lines+markers", name="Kalman Smoothed"
+    ))
+    fig.update_layout(
+        title="Kalman Filtered Cognitive Load",
+        xaxis_title="Index",
+        yaxis_title="Cognitive Load"
+    )
+
+    return dcc.Graph(figure=fig)
+
+def simpson_panel():
+    return html.Div([
+        html.H2("Simpson's Rule"),
+        html.Label("Number of Buckets:"),
+        dcc.Slider(
+            id="simpson-bucket-num",
+            min=3,
+            max=10,
+            step=1,
+            value=5,
+            marks={i: str(i) for i in range(3, 11)},
+            tooltip={"placement": "bottom", "always_visible": True}
+        ),
+        dbc.Button("Integrate Cognitive Load", id="simpson-btn", n_clicks=0, color="primary", className="mt-2"),
+        html.Div(id="simpson-output"),
+    ])
+
+@app.callback(
+    Output("simpson-output", "children"),
+    Input("simpson-btn", "n_clicks"),
+    State("simpson-bucket-num", "value"),
+)
+def handle_simpson(_, bucket_num):
+    global df_global, simpsons_integral, simpsons_bucket
+    if df_global is None or "smoothed_cognitive_load" not in df_global.columns:
+        return html.Div("Apply Kalman filter first.")
+    h = 3
+    simpsons_integral = simpsons_rule(df_global["smoothed_cognitive_load"], h)
+    simpsons_bucket = discretize_simpsons_result(simpsons_integral, num_buckets=bucket_num or 5)
+    return html.Div([
+        html.P(f"Simpson's Integral: {simpsons_integral:.2f}"),
+        html.P(f"Discretized Bucket (num_buckets={bucket_num or 5}): {simpsons_bucket}")
+    ])
+
+def qlearning_panel():
+    return html.Div([
+        html.H2("Q-Learning"),
+        html.Button("Train Q-Learning Agent", id="qlearn-btn", n_clicks=0),
+        html.Div(id="qlearn-output"),
+    ])
+
+@app.callback(
+    Output("qlearn-output", "children"),
+    Input("qlearn-btn", "n_clicks"),
+)
+def handle_qlearning(_):
+    global q_table
+    q_table, _, *_ = train_q_learning_agent(num_episodes=100, max_steps_per_episode=20)
+    return html.Div([
+        html.P("Q-Learning training complete."),
+        html.P(f"Final Q-table shape: {q_table.shape}")
+    ])
+
+def shewhart_panel():
+    return html.Div([
+        html.H2("Shewhart Control"),
+        html.Button("Add Engagement Data", id="shewhart-btn", n_clicks=0),
+        html.Div(id="shewhart-output"),
+    ])
+
+@app.callback(
+    Output("shewhart-output", "children"),
+    Input("shewhart-btn", "n_clicks"),
+)
+def handle_shewhart(_):
+    global chart_state, df_global
+    if df_global is None or "predicted_engagement_level" not in df_global.columns:
+        return html.Div("Run Random Forest prediction first.")
+    engagement_rate = df_global["predicted_engagement_level"].mean() / df_global["predicted_engagement_level"].max()
+    add_engagement_data(chart_state, engagement_rate)
+    anomaly = check_for_engagement_anomaly(chart_state)
+    return html.Div([
+        html.P(f"Engagement Rate: {engagement_rate:.2f}"),
+        html.P(f"Anomaly Detected: {'Yes' if anomaly else 'No'}")
+    ])
 
 if __name__ == "__main__":
     app.run(debug=True)

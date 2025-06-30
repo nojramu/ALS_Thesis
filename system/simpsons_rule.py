@@ -104,6 +104,10 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
 
     return bucket_index + 1  # Return 1-based bucket index
 
+def redefine_state_space(num_buckets):
+    simpsons_integral_levels = range(1, num_buckets + 1)
+    # ... rest as in define_state_space ...
+
 if __name__ == "__main__":
     from data_handling import load_csv
 
