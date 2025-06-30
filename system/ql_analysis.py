@@ -1,8 +1,8 @@
 import os
 import numpy as np
-from system.ql_setup import is_valid_state
-from system.ql_core import get_next_task_type_in_sequence
-from system.plot_utils import (
+from ql_setup import is_valid_state
+from ql_core import get_next_task_type_in_sequence
+from plot_utils import (
     plot_line_chart,
     plot_bar_chart,
     plotly_qtable_heatmap,
@@ -69,7 +69,7 @@ def plot_q_table_heatmap(q_table, filename="image/qtable_heatmap.png", show=Fals
     """
     Plots a heatmap of the Q-table using plot_utils (matplotlib).
     """
-    plotly_qtable_heatmap(q_table, save_path=filename, show=show)
+    plotly_qtable_heatmap(q_table, show=show)
 
 def plot_q_table_heatmap_matplotlib(q_table, filename="image/qtable_heatmap.png", show=False):
     """
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     from ql_training import train_q_learning_agent
 
     # --- Training ---
-    q_table, rewards, max_q_values, policy_evolution = train_q_learning_agent(
+    q_table, rewards, max_q_values, policy_evolution, _ = train_q_learning_agent(
         num_episodes=200,
         max_steps_per_episode=30,
         learning_rate=0.1,

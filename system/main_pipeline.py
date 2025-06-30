@@ -100,7 +100,7 @@ epsilon = 1.0
 epsilon_decay_rate = 0.001
 min_epsilon = 0.01
 
-q_table, rewards, max_q_values, policy_evolution = train_q_learning_agent(
+q_table, rewards, max_q_values, policy_evolution, _ = train_q_learning_agent(
     num_episodes=num_episodes,
     learning_rate=alpha,
     discount_factor=gamma,

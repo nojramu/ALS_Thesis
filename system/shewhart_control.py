@@ -15,7 +15,7 @@ def initialize_control_chart(window_size=10):
         'anomalies': []
     }
 
-def calculate_control_limits(chart_state):
+def calculate_control_limits(chart_state, num_stddev=3):
     """
     Calculate the control limits (CL, UCL, LCL) for the current engagement data.
     Marks anomalies if data points are outside control limits.
@@ -28,11 +28,11 @@ def calculate_control_limits(chart_state):
     arr = np.array(data)
     chart_state['cl'] = np.mean(arr)
     std = np.std(arr, ddof=1)
-    chart_state['ucl'] = min(1.0, chart_state['cl'] + 3 * std)
-    chart_state['lcl'] = max(0.0, chart_state['cl'] - 3 * std)
+    chart_state['ucl'] = min(1.0, chart_state['cl'] + num_stddev * std)
+    chart_state['lcl'] = max(0.0, chart_state['cl'] - num_stddev * std)
     chart_state['anomalies'] = [i for i, v in enumerate(data) if v > chart_state['ucl'] or v < chart_state['lcl']]
 
-def add_engagement_data(chart_state, engagement_rate):
+def add_engagement_data(chart_state, engagement_rate, num_stddev=3):
     """
     Add a new engagement rate to the control chart, maintaining the window size.
     Recalculates control limits after adding.
@@ -41,7 +41,7 @@ def add_engagement_data(chart_state, engagement_rate):
     chart_state['engagement_data'].append(engagement_rate)
     if len(chart_state['engagement_data']) > chart_state['window_size']:
         chart_state['engagement_data'].pop(0)
-    calculate_control_limits(chart_state)
+    calculate_control_limits(chart_state, num_stddev=num_stddev)
 
 def check_for_engagement_anomaly(chart_state):
     """
@@ -184,3 +184,28 @@ def handle_anomaly_and_update_q(
     )
     print(f"Q-table updated with reward: {reward}")
     return reward
+
+if __name__ == "__main__":
+    # Example usage of Shewhart control chart utilities
+
+    # 1. Initialize chart state
+    chart_state = initialize_control_chart(window_size=10)
+
+    # 2. Simulate adding engagement data
+    example_engagement_rates = [0.7, 0.8, 0.75, 0.9, 0.85, 0.95, 0.6, 0.65, 0.8, 0.92, 0.5]
+    for rate in example_engagement_rates:
+        add_engagement_data(chart_state, rate)
+        print(f"Added engagement rate: {rate:.2f}")
+
+    # 3. Check for anomaly
+    anomaly = check_for_engagement_anomaly(chart_state)
+    print(f"Anomaly detected: {'Yes' if anomaly else 'No'}")
+
+    # 4. Plot and save the control chart
+    plot_shewhart_chart(chart_state, filename_prefix='example_shewhart_chart')
+
+    # 5. Example of getting adjusted decision (interactive, for CLI use)
+    # current_state = (3, 4, 1, 'B')
+    # recommended_action = ('C', 7)
+    # adjusted_action, fig = get_adjusted_decision(chart_state, current_state, recommended_action)
+    # print(f"Adjusted action: {adjusted_action}")

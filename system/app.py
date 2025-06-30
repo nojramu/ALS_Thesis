@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import os
+from dash.dependencies import ALL
 
 from data_handling import load_csv, preprocess_data
 from random_forest import train_models
@@ -12,8 +13,9 @@ from kalman_filter import add_kalman_column
 from simpsons_rule import simpsons_rule, discretize_simpsons_result
 from ql_setup import define_state_space, define_action_space, initialize_q_table
 from ql_training import train_q_learning_agent
-from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
+from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly, get_control_chart_data
 from plot_utils import plot_line_chart, plotly_bar_chart
+from ql_analysis import get_optimal_action_for_state, plotly_qtable_heatmap
 
 # --- App Initialization ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -53,6 +55,7 @@ def make_main_panel():
 app.layout = dbc.Container(
     [
         dcc.Location(id="url"),
+        dcc.Store(id="shewhart-chart-state", data=initialize_control_chart()),
         dbc.Row([
             dbc.Col(sidebar, width=2),
             dbc.Col(make_main_panel(), width=10)
@@ -253,6 +256,18 @@ def rf_panel():
         html.Hr(),
         html.H4("Test Model with Custom Input"),
         html.Div(feature_inputs),
+        dbc.Row([
+            dbc.Col(html.Label("Test Size:"), width=4),
+            dbc.Col(dcc.Input(id="rf-test-size", type="number", value=0.2, min=0.05, max=0.5, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Random State:"), width=4),
+            dbc.Col(dcc.Input(id="rf-random-state", type="number", value=25, min=0, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("N Estimators:"), width=4),
+            dbc.Col(dcc.Input(id="rf-n-estimators", type="number", value=100, min=10, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
         dbc.Button("Test", id="rf-test-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="rf-test-output", className="mt-3")
     ])
@@ -260,9 +275,12 @@ def rf_panel():
 @app.callback(
     Output("rf-output", "children"),
     Input("train-rf-btn", "n_clicks"),
+    State("rf-test-size", "value"),
+    State("rf-random-state", "value"),
+    State("rf-n-estimators", "value"),
     prevent_initial_call=True
 )
-def handle_rf_train(n_clicks):
+def handle_rf_train(n_clicks, test_size, random_state, n_estimators):
     global df_global, rf_models, features, metrics
     if not n_clicks:
         return ""  # Don't show anything until button is clicked
@@ -281,7 +299,10 @@ def handle_rf_train(n_clicks):
     if df is None or df.empty:
         return html.Div("Data preprocessing failed. Please check your data.")
 
-    reg, clf, features, metrics = train_models(df, feature_cols, target_cols)
+    reg, clf, features, metrics = train_models(df, feature_cols, target_cols,
+                                               test_size=test_size,
+                                               random_state=random_state,
+                                               n_estimators=n_estimators)
     rf_models = (reg, clf)
 
     # Plot feature importance for regression model
@@ -375,6 +396,15 @@ def kalman_panel():
         html.Br(),
         dbc.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="kalman-output"),
+        html.Hr(),
+        dbc.Row([
+            dbc.Col(html.Label("Process Noise:"), width=4),
+            dbc.Col(dcc.Input(id="kalman-process-noise", type="number", value=0.1, min=0, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Measurement Noise:"), width=4),
+            dbc.Col(dcc.Input(id="kalman-measurement-noise", type="number", value=1.0, min=0, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
     ])
 
 @app.callback(
@@ -455,9 +485,11 @@ def handle_kalman_predictions(uploaded_contents, uploaded_filename, n_clicks_sam
     Output("kalman-output", "children"),
     Input("kalman-btn", "n_clicks"),
     State("kalman-pred-table", "children"),
+    State("kalman-process-noise", "value"),
+    State("kalman-measurement-noise", "value"),
     prevent_initial_call=True
 )
-def handle_kalman(n_clicks, pred_table_children):
+def handle_kalman(n_clicks, pred_table_children, process_noise, measurement_noise):
     global df_global
     import pandas as pd
     from plotly.graph_objs import Figure
@@ -473,7 +505,8 @@ def handle_kalman(n_clicks, pred_table_children):
         return html.Div([f"Failed to load predictions: {e}"])
 
     try:
-        df = add_kalman_column(df, col="cognitive_load", new_col="smoothed_cognitive_load")
+        df = add_kalman_column(df, col="cognitive_load", new_col="smoothed_cognitive_load",
+                               process_noise=process_noise, measurement_noise=measurement_noise)
         df_global = df  # <-- Save to global so Simpson panel can access
     except Exception as e:
         return html.Div([f"Kalman filter failed: {e}"])
@@ -531,46 +564,269 @@ def handle_simpson(_, bucket_num):
     ])
 
 def qlearning_panel():
+    # Training parameter inputs
+    param_rows = [
+        dbc.Row([
+            dbc.Col(html.Label("Number of Episodes:"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-episodes", type="number", value=200, min=1, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Max Steps per Episode:"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-max-steps", type="number", value=30, min=1, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Learning Rate (alpha):"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-lr", type="number", value=0.1, min=0, max=1, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Discount Factor (gamma):"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-gamma", type="number", value=0.9, min=0, max=1, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Epsilon (exploration):"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-epsilon", type="number", value=1.0, min=0, max=1, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Epsilon Decay Rate:"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-eps-decay", type="number", value=0.005, min=0, max=1, step=0.001, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Min Epsilon:"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-min-epsilon", type="number", value=0.05, min=0, max=1, step=0.01, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Number of Buckets (Simpson):"), width=4),
+            dbc.Col(dcc.Input(id="qlearn-buckets", type="number", value=5, min=3, max=10, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+    ]
+    # Testing input fields
+    test_rows = [
+        dbc.Row([
+            dbc.Col(html.Label("Simpson's Integral Level (1-N):"), width=4),
+            dbc.Col(dcc.Input(id="ql-test-simpson", type="number", value=3, min=1, max=10, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Engagement Level (1-5):"), width=4),
+            dbc.Col(dcc.Input(id="ql-test-engagement", type="number", value=3, min=1, max=5, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Task Completed (0 or 1):"), width=4),
+            dbc.Col(dcc.Input(id="ql-test-completed", type="number", value=1, min=0, max=1, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Previous Task Type (A/B/C/D):"), width=4),
+            dbc.Col(dcc.Input(id="ql-test-prevtype", type="text", value='A', maxLength=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+    ]
     return html.Div([
         html.H2("Q-Learning"),
-        html.Button("Train Q-Learning Agent", id="qlearn-btn", n_clicks=0),
+        html.Div(param_rows),
+        dbc.Button("Train Q-Learning Agent", id="qlearn-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="qlearn-output"),
+        html.Hr(),
+        html.H4("Test Q-Learning Policy"),
+        html.Div(test_rows),
+        dbc.Button("Get Recommended Action", id="ql-test-btn", n_clicks=0, color="primary", className="mt-2"),
+        html.Div(id="ql-test-output"),
+        html.Hr(),
+        html.H4("Q-Table Heatmap"),
+        dcc.Loading(dcc.Graph(id="qlearn-heatmap"), type="circle"),
     ])
 
 @app.callback(
-    Output("qlearn-output", "children"),
+    [Output("qlearn-output", "children"),
+     Output("qlearn-heatmap", "figure")],
     Input("qlearn-btn", "n_clicks"),
+    State("qlearn-episodes", "value"),
+    State("qlearn-max-steps", "value"),
+    State("qlearn-lr", "value"),
+    State("qlearn-gamma", "value"),
+    State("qlearn-epsilon", "value"),
+    State("qlearn-eps-decay", "value"),
+    State("qlearn-min-epsilon", "value"),
+    State("qlearn-buckets", "value"),
+    prevent_initial_call=True
 )
-def handle_qlearning(_):
-    global q_table
-    q_table, _, *_ = train_q_learning_agent(num_episodes=100, max_steps_per_episode=20)
-    return html.Div([
-        html.P("Q-Learning training complete."),
-        html.P(f"Final Q-table shape: {q_table.shape}")
-    ])
+def handle_qlearning(n_clicks, episodes, max_steps, lr, gamma, epsilon, eps_decay, min_epsilon, num_buckets):
+    global q_table, state_to_index, index_to_action, action_to_index, index_to_state
+    states, state_to_index, index_to_state, num_states = define_state_space(num_buckets)
+    actions, action_to_index, index_to_action, num_actions = define_action_space()
+    q_table = initialize_q_table(num_states, num_actions)
 
+    # Get logs from training
+    q_table, rewards, max_q_values, policy_evolution, logs = train_q_learning_agent(
+        num_episodes=episodes,
+        max_steps_per_episode=max_steps,
+        learning_rate=lr,
+        discount_factor=gamma,
+        epsilon=epsilon,
+        epsilon_decay_rate=eps_decay,
+        min_epsilon=min_epsilon,
+        reward_mode="state",
+        progress_interval=20,
+        num_buckets=num_buckets
+    )
+    # Plotly heatmap
+    heatmap_fig = plotly_qtable_heatmap(q_table, index_to_state=index_to_state, index_to_action=index_to_action, show=False)
+    return (
+        html.Div([
+            html.P("Q-Learning training complete."),
+            html.P(f"Final Q-table shape: {q_table.shape}"),
+            html.Pre("\n".join(logs), style={"maxHeight": "300px", "overflowY": "auto", "background": "#f8f8f8"})
+        ]),
+        heatmap_fig
+    )
+
+@app.callback(
+    Output("ql-test-output", "children"),
+    Input("ql-test-btn", "n_clicks"),
+    State("ql-test-simpson", "value"),
+    State("ql-test-engagement", "value"),
+    State("ql-test-completed", "value"),
+    State("ql-test-prevtype", "value"),
+    prevent_initial_call=True
+)
+def handle_ql_test(n_clicks, simpson_level, engagement_level, completed, prev_type):
+    global q_table, state_to_index, index_to_action, action_to_index
+    if q_table is None:
+        return html.Div("Please train the Q-learning agent first.")
+    try:
+        state = (int(simpson_level), int(engagement_level), int(completed), str(prev_type).upper())
+    except Exception:
+        return html.Div("Invalid input. Please check your values.")
+    action = get_optimal_action_for_state(state, q_table, state_to_index, index_to_action, action_to_index)
+    if action is None:
+        return html.Div("No valid action found for this state.")
+
+    # Show top 5 actions
+    top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5)
+    top_actions_html = [
+        html.Li(f"{i+1}. Task: {a[0][0]}, Difficulty: {a[0][1]}, Q-value: {a[1]:.4f}")
+        for i, a in enumerate(top_actions)
+    ]
+
+    return html.Div([
+        html.P(f"Recommended Next Task: {action[0]}"),
+        html.P(f"Recommended Difficulty: {action[1]}"),
+        html.Hr(),
+        html.H5("Top 5 Actions:"),
+        html.Ul(top_actions_html)
+    ])
 def shewhart_panel():
+    # Create buttons for engagement rates 0.0 to 1.0
+    rate_buttons = [
+        dbc.Button(
+            f"{v:.1f}",
+            id={"type": "shewhart-rate-btn", "index": f"{v:.1f}"},
+            color="secondary",
+            outline=True,
+            size="sm",
+            style={"marginRight": "4px", "marginBottom": "4px"}
+        )
+        for v in [i / 10 for i in range(11)]
+    ]
     return html.Div([
         html.H2("Shewhart Control"),
-        html.Button("Add Engagement Data", id="shewhart-btn", n_clicks=0),
-        html.Div(id="shewhart-output"),
+        dbc.Row([
+            dbc.Col(html.Label("Window Size:"), width=4),
+            dbc.Col(dcc.Input(id="shewhart-window", type="number", value=10, min=2, max=100, step=1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        dbc.Row([
+            dbc.Col(html.Label("Num Std Dev (Threshold):"), width=4),
+            dbc.Col(dcc.Input(id="shewhart-num-stddev", type="number", value=3, min=1, max=5, step=0.1, style={"width": "100%"}), width=8)
+        ], className="mb-2"),
+        html.Label("Sample Engagement Rate:"),
+        html.Div(rate_buttons, style={"display": "flex", "flexWrap": "wrap", "marginBottom": "8px"}),
+        dbc.Button("Reset Chart", id="shewhart-reset-btn", n_clicks=0, color="secondary", className="mt-2"),
+        html.Div(id="shewhart-notification", className="mt-2"),
+        dcc.Graph(id="shewhart-plotly-fig", style={"height": "400px"}),
     ])
+# Store chart state in a dcc.Store for session persistence
+# (dcc.Store is already included in app.layout definition above)
 
 @app.callback(
-    Output("shewhart-output", "children"),
-    Input("shewhart-btn", "n_clicks"),
+    [Output("shewhart-plotly-fig", "figure"),
+     Output("shewhart-notification", "children"),
+     Output("shewhart-chart-state", "data")],
+    [Input({"type": "shewhart-rate-btn", "index": ALL}, "n_clicks"),
+     Input("shewhart-reset-btn", "n_clicks")],
+    State("shewhart-window", "value"),
+    State("shewhart-num-stddev", "value"),
+    State("shewhart-chart-state", "data"),
+    prevent_initial_call=True
 )
-def handle_shewhart(_):
-    global chart_state, df_global
-    if df_global is None or "predicted_engagement_level" not in df_global.columns:
-        return html.Div("Run Random Forest prediction first.")
-    engagement_rate = df_global["predicted_engagement_level"].mean() / df_global["predicted_engagement_level"].max()
-    add_engagement_data(chart_state, engagement_rate)
-    anomaly = check_for_engagement_anomaly(chart_state)
-    return html.Div([
-        html.P(f"Engagement Rate: {engagement_rate:.2f}"),
-        html.P(f"Anomaly Detected: {'Yes' if anomaly else 'No'}")
-    ])
+def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev, chart_state):
+    import dash
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+    triggered = ctx.triggered[0]["prop_id"]
+
+    # Handle reset
+    if "shewhart-reset-btn" in triggered:
+        chart_state = initialize_control_chart(window_size=window_size)
+        fig = go.Figure()
+        fig.update_layout(
+            title="Shewhart Control Chart",
+            xaxis_title="Task Index (within window)",
+            yaxis_title="Engagement Rate",
+            legend_title="Legend"
+        )
+        notification = "Chart has been reset."
+        return fig, notification, chart_state
+
+    # Handle engagement rate button click
+    # Find which button was clicked by parsing the triggered prop_id
+    if "shewhart-rate-btn" in triggered:
+        import json
+        btn_id = json.loads(triggered.split(".")[0])
+        engagement_rate = float(btn_id["index"])
+    else:
+        raise dash.exceptions.PreventUpdate
+
+    if not chart_state or 'window_size' not in chart_state:
+        chart_state = initialize_control_chart(window_size=window_size)
+    else:
+        chart_state['window_size'] = window_size
+
+    add_engagement_data(chart_state, engagement_rate, num_stddev=num_stddev)
+    chart_data = get_control_chart_data(chart_state)
+    if not chart_data:
+        fig = go.Figure()
+        notification = "Not enough data to plot control chart."
+        return fig, notification, chart_state
+
+    x = list(range(len(chart_data['engagement_rates'])))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=chart_data['engagement_rates'], mode='lines+markers', name='Engagement Rate'))
+    fig.add_trace(go.Scatter(x=x, y=[chart_data['cl']] * len(x), mode='lines', name='CL'))
+    fig.add_trace(go.Scatter(x=x, y=[chart_data['ucl']] * len(x), mode='lines', name='UCL'))
+    fig.add_trace(go.Scatter(x=x, y=[chart_data['lcl']] * len(x), mode='lines', name='LCL'))
+    if chart_data['anomalies']:
+        anomaly_x = [i for i in chart_data['anomalies']]
+        anomaly_y = [chart_data['engagement_rates'][i] for i in anomaly_x]
+        fig.add_trace(go.Scatter(x=anomaly_x, y=anomaly_y, mode='markers', marker=dict(color='red', size=12, symbol='x'), name='Anomaly'))
+
+    fig.update_layout(
+        title="Shewhart Control Chart",
+        xaxis_title="Task Index (within window)",
+        yaxis_title="Engagement Rate",
+        legend_title="Legend"
+    )
+
+    notification = ""
+    if chart_data['anomalies'] and chart_data['anomalies'][-1] == len(chart_data['engagement_rates']) - 1:
+        notification = html.Div("⚠️ Anomaly detected in the latest engagement rate!", style={"color": "red", "fontWeight": "bold"})
+
+    return fig, notification, chart_state
+def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5):
+    """Return a list of (action, q_value) tuples for the top-N actions for a given state."""
+    if state not in state_to_index:
+        return []
+    state_idx = state_to_index[state]
+    q_values = q_table[state_idx]
+    top_indices = q_values.argsort()[::-1][:n]
+    return [(index_to_action[i], q_values[i]) for i in top_indices]
 
 if __name__ == "__main__":
     app.run(debug=True)

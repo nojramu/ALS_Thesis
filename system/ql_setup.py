@@ -1,7 +1,7 @@
 import itertools
 import numpy as np
 
-def define_state_space():
+def define_state_space(num_buckets=5):
     """
     Defines the state space for the Q-learning agent in the adaptive learning environment.
 
@@ -11,10 +11,13 @@ def define_state_space():
     - task_completed (int: 0 or 1): Status of the previous task.
     - prev_task_type (str: 'A', 'B', 'C', 'D'): Type of the previously presented task.
 
+    Args:
+        num_buckets (int): The number of buckets to discretize the cognitive load trend (simpsons_integral_level).
+
     Returns:
         tuple: (all_states_tuple, state_to_index, index_to_state, num_states)
     """
-    simpsons_integral_levels = range(1, 6)
+    simpsons_integral_levels = range(1, num_buckets + 1)
     engagement_levels = range(1, 6)
     task_completed_statuses = [0, 1]
     prev_task_types = ['A', 'B', 'C', 'D']

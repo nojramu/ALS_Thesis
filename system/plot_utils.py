@@ -179,9 +179,9 @@ def plotly_bar_chart(x, y, xlabel='X', ylabel='Y', title='Bar Chart', color='blu
         fig.show()
     return fig
 
-def plotly_heatmap(z, x=None, y=None, xlabel='X', ylabel='Y', title='Heatmap', save_path=None, show=False, colorbar_title="Value"):
+def plotly_heatmap(z, x=None, y=None, xlabel='X', ylabel='Y', title='Heatmap', show=False, colorbar_title="Value"):
     """
-    Plots a heatmap using Plotly.
+    Plots a heatmap using Plotly (for interactive display only).
     """
     fig = go.Figure(data=go.Heatmap(
         z=z,
@@ -190,23 +190,29 @@ def plotly_heatmap(z, x=None, y=None, xlabel='X', ylabel='Y', title='Heatmap', s
         colorbar=dict(title=colorbar_title)
     ))
     fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
-    if save_path:
-        fig.write_image(save_path)
-        print(f"Plotly heatmap saved to {save_path}")
     if show:
         fig.show()
     return fig
 
-def plotly_qtable_heatmap(q_table, save_path=None, show=False):
+def plotly_qtable_heatmap(q_table, index_to_state=None, index_to_action=None, show=False):
     """
-    Plots a Q-table heatmap using Plotly.
+    Plots a Q-table heatmap using Plotly with labeled axes.
     """
-    fig = px.imshow(q_table, color_continuous_scale='Viridis', aspect='auto',
-                    labels=dict(x="Action Index", y="State Index", color="Q-value"),
-                    title="Q-table Heatmap")
-    if save_path:
-        fig.write_image(save_path)
-        print(f"Q-table heatmap saved to {save_path}")
+    import plotly.express as px
+
+    # Create axis labels if mappings are provided
+    y_labels = [str(index_to_state[i]) for i in range(q_table.shape[0])] if index_to_state else [str(i) for i in range(q_table.shape[0])]
+    x_labels = [str(index_to_action[j]) for j in range(q_table.shape[1])] if index_to_action else [str(j) for j in range(q_table.shape[1])]
+
+    fig = px.imshow(
+        q_table,
+        color_continuous_scale='Viridis',
+        aspect='auto',
+        labels=dict(x="Action (Task, Difficulty)", y="State (Simpson, Engagement, Completed, PrevTask)", color="Q-value"),
+        title="Q-table Heatmap",
+        x=x_labels,
+        y=y_labels
+    )
     if show:
         fig.show()
     return fig
@@ -221,7 +227,6 @@ def plot_visit_counts_heatmap(visit_counts, save_path="image/state_action_visit_
             xlabel="Action Index",
             ylabel="State Index",
             title="State-Action Visit Counts (Unvisited = 0)",
-            save_path=save_path,
             show=show,
             colorbar_title="Visit Count"
         )

@@ -16,7 +16,8 @@ def train_q_learning_agent(
     min_epsilon=0.01,
     reward_mode="state",
     progress_interval=10,
-    state_for_policy_tracking=(3, 3, 0, 'A')
+    state_for_policy_tracking=(3, 3, 0, 'A'),
+    num_buckets=5  # New parameter for number of buckets
 ):
     """
     Trains a Q-learning agent with best practices and logging.
@@ -28,7 +29,7 @@ def train_q_learning_agent(
     """
     from ql_setup import define_state_space, define_action_space, initialize_q_table
 
-    states, state_to_index, index_to_state, num_states = define_state_space()
+    states, state_to_index, index_to_state, num_states = define_state_space(num_buckets)
     actions, action_to_index, index_to_action, num_actions = define_action_space()
     q_table = initialize_q_table(num_states, num_actions)
     visit_counts = np.zeros_like(q_table)
@@ -39,6 +40,7 @@ def train_q_learning_agent(
 
     print(f"\nStarting Q-Learning training for {num_episodes} episodes...")
 
+    logs = []
     for episode in range(num_episodes):
         starting_state = random.choice(list(state_to_index.keys()))
         if not is_valid_state(starting_state, state_to_index):
@@ -89,19 +91,21 @@ def train_q_learning_agent(
 
         # Print progress
         if (episode + 1) % progress_interval == 0:
-            print(f"Episode {episode + 1}/{num_episodes}, Total Reward: {total_episode_reward:.2f}, Epsilon: {current_epsilon:.4f}")
+            log_line = f"Episode {episode + 1}: reward={total_episode_reward:.2f}, epsilon={current_epsilon:.4f}"
+            print(log_line)
+            logs.append(log_line)
 
     print("\nQ-Learning training finished.")
 
     plot_visit_counts_heatmap(visit_counts)
 
-    return q_table, total_rewards_per_episode, max_q_values_over_time, policy_evolution
+    return q_table, total_rewards_per_episode, max_q_values_over_time, policy_evolution, logs
 
 def test_q_learning():
     """
     Example test function to run Q-learning training and print results.
     """
-    q_table, rewards, max_q_values_over_time, policy_evolution = train_q_learning_agent(
+    q_table, rewards, max_q_values_over_time, policy_evolution, logs = train_q_learning_agent(
         num_episodes=100,
         max_steps_per_episode=20,
         learning_rate=0.1,
