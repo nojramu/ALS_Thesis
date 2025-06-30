@@ -12,7 +12,7 @@ from kalman_filter import add_kalman_column
 from simpsons_rule import simpsons_rule, discretize_simpsons_result
 from ql_setup import define_state_space, define_action_space, initialize_q_table
 from ql_training import train_q_learning_agent
-from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly, get_control_chart_data
+from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly, get_control_chart_data, enough_anomalies
 from plot_utils import plot_line_chart, plotly_bar_chart
 from ql_analysis import get_optimal_action_for_state, plotly_qtable_heatmap
 
@@ -844,15 +844,27 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
         fig.add_trace(go.Scatter(x=anomaly_x, y=anomaly_y, mode='markers', marker=dict(color='red', size=12, symbol='x'), name='Anomaly'))
 
     notification = ""
+    # Natural language explanation for anomaly
     if anomalies and anomalies[-1] == len(engagement_rates) - 1:
-        notification = html.Div("⚠️ Anomaly detected in the latest engagement rate!", style={"color": "red", "fontWeight": "bold"})
+        latest = engagement_rates[-1]
+        explanation = f"Latest engagement rate ({latest:.2f}) is {'above' if latest > ucl else 'below'} the control limits (CL={cl:.2f}, UCL={ucl:.2f}, LCL={lcl:.2f})."
+        notification = html.Div([
+            "⚠️ Anomaly detected in the latest engagement rate!",
+            html.Br(),
+            explanation
+        ], style={"color": "red", "fontWeight": "bold"})
 
-    fig.update_layout(
-        title="Shewhart Control Chart",
-        xaxis_title="Task Index (within window)",
-        yaxis_title="Engagement Rate",
-        legend_title="Legend"
-    )
+    # Check for enough anomalies to suggest retraining/adaptation
+    if enough_anomalies(chart_state, threshold=2):  # You can adjust the threshold
+        retrain_msg = html.Div(
+            "⚠️ Multiple anomalies detected! Consider retraining the Random Forest models or adapting the system.",
+            style={"color": "orange", "fontWeight": "bold", "marginTop": "10px"}
+        )
+        # If there is already a notification, append the retrain message
+        if notification:
+            notification = html.Div([notification, html.Br(), retrain_msg])
+        else:
+            notification = retrain_msg
 
     return fig, notification, chart_state
 def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5):

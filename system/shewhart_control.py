@@ -2,7 +2,7 @@ from plot_utils import plot_line_chart, save_figure_to_image_folder
 from ql_core import update_q_table  # Import at the top for clarity
 import numpy as np
 
-def initialize_control_chart(window_size=10):
+def initialize_control_chart(window_size=10, anomaly_buffer_size=3):
     """
     Initialize the control chart state with a specified window size.
     """
@@ -12,12 +12,13 @@ def initialize_control_chart(window_size=10):
         'cl': None,
         'ucl': None,
         'lcl': None,
-        'anomalies': []
+        'anomalies': [],
+        'anomaly_buffer': [False] * anomaly_buffer_size  # Track recent anomalies
     }
 
 def calculate_control_limits(chart_state, num_stddev=3):
     """
-    Calculate the control limits (CL, UCL, LCL) for the current engagement data.
+    Calculate the control limits (CL, UCL, LCL) for the current engagement data using median and IQR.
     Marks anomalies if data points are outside control limits.
     """
     data = chart_state['engagement_data']
@@ -26,10 +27,14 @@ def calculate_control_limits(chart_state, num_stddev=3):
         chart_state['anomalies'] = []
         return
     arr = np.array(data)
-    chart_state['cl'] = np.mean(arr)
-    std = np.std(arr, axis=None, dtype=None, out=None, ddof=1, keepdims=False)
-    chart_state['ucl'] = min(1.0, chart_state['cl'] + num_stddev * std)
-    chart_state['lcl'] = max(0.0, chart_state['cl'] - num_stddev * std)
+    median = np.median(arr)
+    q75, q25 = np.percentile(arr, [75, 25])
+    iqr = q75 - q25
+    # For normal distribution, std ≈ IQR/1.349
+    robust_std = iqr / 1.349 if iqr > 0 else 0.0
+    chart_state['cl'] = median
+    chart_state['ucl'] = min(1.0, float(median + num_stddev * robust_std))
+    chart_state['lcl'] = max(0.0, float(median - num_stddev * robust_std))
     chart_state['anomalies'] = [i for i, v in enumerate(data) if v > chart_state['ucl'] or v < chart_state['lcl']]
 
 def add_engagement_data(chart_state, engagement_rate, num_stddev=3):
@@ -42,6 +47,11 @@ def add_engagement_data(chart_state, engagement_rate, num_stddev=3):
     if len(chart_state['engagement_data']) > chart_state['window_size']:
         chart_state['engagement_data'].pop(0)
     calculate_control_limits(chart_state, num_stddev=num_stddev)
+    # Update anomaly buffer
+    is_anomaly = check_for_engagement_anomaly(chart_state)
+    chart_state['anomaly_buffer'].append(is_anomaly)
+    if len(chart_state['anomaly_buffer']) > 3:  # buffer size
+        chart_state['anomaly_buffer'].pop(0)
 
 def check_for_engagement_anomaly(chart_state):
     """
@@ -181,6 +191,10 @@ def handle_anomaly_and_update_q(
     )
     print(f"Q-table updated with reward: {reward}")
     return reward
+
+def enough_anomalies(chart_state, threshold=2):
+    """Return True if enough anomalies in buffer to trigger adaptation."""
+    return sum(chart_state.get('anomaly_buffer', [])) >= threshold
 
 if __name__ == "__main__":
     # Example usage of Shewhart control chart utilities
