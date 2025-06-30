@@ -843,13 +843,15 @@ def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action,
     return [(index_to_action[i], q_values[i]) for i in top_indices]
 
 def get_control_chart_data(chart_state):
-    # Defensive: always return a dict with all keys, even if empty
+    """
+    Always return a dict with all keys, even if values are None or empty.
+    """
     return {
-        "engagement_rates": chart_state.get("engagement_data", []),
-        "cl": chart_state.get("cl"),
-        "ucl": chart_state.get("ucl"),
-        "lcl": chart_state.get("lcl"),
-        "anomalies": chart_state.get("anomalies", [])
+        'engagement_rates': chart_state.get('engagement_data', []),
+        'cl': chart_state.get('cl'),
+        'ucl': chart_state.get('ucl'),
+        'lcl': chart_state.get('lcl'),
+        'anomalies': chart_state.get('anomalies', [])
     }
 
 if __name__ == "__main__":

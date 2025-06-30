@@ -27,7 +27,7 @@ def calculate_control_limits(chart_state, num_stddev=3):
         return
     arr = np.array(data)
     chart_state['cl'] = np.mean(arr)
-    std = np.std(arr, ddof=1)
+    std = np.std(arr, axis=None, dtype=None, out=None, ddof=1, keepdims=False)
     chart_state['ucl'] = min(1.0, chart_state['cl'] + num_stddev * std)
     chart_state['lcl'] = max(0.0, chart_state['cl'] - num_stddev * std)
     chart_state['anomalies'] = [i for i, v in enumerate(data) if v > chart_state['ucl'] or v < chart_state['lcl']]
@@ -54,17 +54,14 @@ def check_for_engagement_anomaly(chart_state):
 
 def get_control_chart_data(chart_state):
     """
-    Return the current control chart data for plotting or analysis.
-    (Could be inlined if only used in one place, but kept modular for clarity.)
+    Always return a dict with all keys, even if values are None or empty.
     """
-    if chart_state['cl'] is None or chart_state['ucl'] is None or chart_state['lcl'] is None:
-        return None
     return {
-        'engagement_rates': chart_state['engagement_data'],
-        'cl': chart_state['cl'],
-        'ucl': chart_state['ucl'],
-        'lcl': chart_state['lcl'],
-        'anomalies': chart_state['anomalies']
+        'engagement_rates': chart_state.get('engagement_data', []),
+        'cl': chart_state.get('cl'),
+        'ucl': chart_state.get('ucl'),
+        'lcl': chart_state.get('lcl'),
+        'anomalies': chart_state.get('anomalies', [])
     }
 
 def plot_shewhart_chart(chart_state, filename_prefix='shewhart_chart', image_dir='image'):
