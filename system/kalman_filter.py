@@ -23,7 +23,7 @@ def apply_kalman_filter(
     """
     measurements = np.asarray(measurements)
     n = len(measurements)
-    smoothed = np.zeros(n)
+    smoothed = np.zeros(n, dtype=measurements.dtype)
 
     # Initialize state estimate and covariance
     x_hat = measurements[0] if initial_state is None else initial_state

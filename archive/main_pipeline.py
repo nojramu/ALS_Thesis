@@ -1,19 +1,19 @@
 import os
-import numpy as np
 import random
+import numpy as np
 
-from data_handling import load_csv, preprocess_data, save_csv
-from random_forest import train_models, predict, save_models
-from kalman_filter import add_kalman_column
-from simpsons_rule import simpsons_rule, discretize_simpsons_result
-from ql_setup import define_state_space, define_action_space, initialize_q_table
-from ql_training import train_q_learning_agent
-from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
-from ql_analysis import plot_q_table_heatmap, print_policy_summary, plot_learning_curve
-from plot_utils import plot_line_chart
+from system.data_handling import load_csv, preprocess_data, save_csv
+from system.random_forest import train_models, predict, save_models
+from system.kalman_filter import add_kalman_column
+from system.simpsons_rule import simpsons_rule, discretize_simpsons_result
+from system.ql_setup import define_state_space, define_action_space, initialize_q_table
+from system.ql_training import train_q_learning_agent
+from system.shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly
+from system.ql_analysis import plot_q_table_heatmap, print_policy_summary, plot_learning_curve
+from system.plot_utils import plot_line_chart
 
 # --- 0. Set random seeds for reproducibility ---
-np.random.seed(42)
+from system.random_forest import train_models, predict, save_models
 random.seed(42)
 
 # --- 1. Ensure output folders exist ---

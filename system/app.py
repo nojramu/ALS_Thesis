@@ -2,7 +2,6 @@ import dash
 from dash import dcc, html, Input, Output, State, dash_table
 import dash_bootstrap_components as dbc
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objs as go
 import os
 from dash.dependencies import ALL
@@ -41,7 +40,7 @@ sidebar = dbc.Nav(
         dbc.NavLink("Simpson's Rule", href="/simpson", active="exact"),
         dbc.NavLink("Q-Learning", href="/qlearning", active="exact"),
         dbc.NavLink("Shewhart Control", href="/shewhart", active="exact"),
-        # dbc.NavLink("Visualization", href="/viz", active="exact"),
+        dbc.NavLink("System Simulation", href="/sys_simulation", active="exact"),
     ],
     vertical=True,
     pills=True,
@@ -82,8 +81,8 @@ def display_page(pathname):
         return qlearning_panel()
     elif pathname == "/shewhart":
         return shewhart_panel()
-    # elif pathname == "/viz":
-    #     return viz_panel()
+    elif pathname == "/sys_simulation":
+        return sys_simulation_panel()
     else:
         return html.H3("404: Page not found")
 
@@ -729,7 +728,7 @@ def shewhart_panel():
         html.H2("Shewhart Control"),
         dbc.Row([
             dbc.Col(html.Label("Window Size:"), width=4),
-            dbc.Col(dcc.Input(id="shewhart-window", type="number", value=10, min=2, max=100, step=1, style={"width": "100%"}), width=8)
+            dbc.Col(dcc.Input(id="shewhart-window", type="number", value=20, min=2, max=100, step=1, style={"width": "100%"}), width=8)
         ], className="mb-2"),
         dbc.Row([
             dbc.Col(html.Label("Num Std Dev (Threshold):"), width=4),
@@ -737,50 +736,75 @@ def shewhart_panel():
         ], className="mb-2"),
         html.Label("Sample Engagement Rate:"),
         html.Div(rate_buttons, style={"display": "flex", "flexWrap": "wrap", "marginBottom": "8px"}),
+        dbc.Button("Simulate", id="shewhart-sim-btn", n_clicks=0, color="info", className="mt-2", style={"marginRight": "10px"}),
+        dcc.Interval(id="shewhart-sim-interval", interval=1000, n_intervals=0, disabled=True),
         dbc.Button("Reset Chart", id="shewhart-reset-btn", n_clicks=0, color="secondary", className="mt-2"),
         html.Div(id="shewhart-notification", className="mt-2"),
         dcc.Graph(id="shewhart-plotly-fig", style={"height": "400px"}),
     ])
-# Store chart state in a dcc.Store for session persistence
-# (dcc.Store is already included in app.layout definition above)
+
+@app.callback(
+    Output("shewhart-sim-interval", "disabled"),
+    Output("shewhart-sim-btn", "children"),
+    Input("shewhart-sim-btn", "n_clicks"),
+    State("shewhart-sim-interval", "disabled"),
+    prevent_initial_call=True
+)
+def toggle_simulation(n_clicks, disabled):
+    if n_clicks is None:
+        raise dash.exceptions.PreventUpdate
+    running = not disabled
+    return running, ("Stop" if not disabled else "Simulate")
 
 @app.callback(
     [Output("shewhart-plotly-fig", "figure"),
      Output("shewhart-notification", "children"),
      Output("shewhart-chart-state", "data")],
     [Input({"type": "shewhart-rate-btn", "index": ALL}, "n_clicks"),
-     Input("shewhart-reset-btn", "n_clicks")],
+     Input("shewhart-reset-btn", "n_clicks"),
+     Input("shewhart-sim-interval", "n_intervals")],
     State("shewhart-window", "value"),
     State("shewhart-num-stddev", "value"),
     State("shewhart-chart-state", "data"),
+    State("shewhart-sim-interval", "disabled"),
     prevent_initial_call=True
 )
-def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev, chart_state):
+def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_size, num_stddev, chart_state, sim_disabled):
     import dash
     import json
     import re
+    import random
 
     ctx = dash.callback_context
     if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
     triggered = ctx.triggered[0]["prop_id"]
 
-    # Handle reset
+    # Handle reset: add two median values for control limits
     if "shewhart-reset-btn" in triggered:
         chart_state = initialize_control_chart(window_size=window_size)
+        add_engagement_data(chart_state, 0.5, num_stddev=num_stddev)
+        add_engagement_data(chart_state, 0.5, num_stddev=num_stddev)
+        chart_data = get_control_chart_data(chart_state)
+        engagement_rates = chart_data.get("engagement_rates", [])
+        cl = chart_data.get("cl")
+        ucl = chart_data.get("ucl")
+        lcl = chart_data.get("lcl")
+        anomalies = chart_data.get("anomalies", [])
+        x = list(range(len(engagement_rates)))
         fig = go.Figure()
-        fig.update_layout(
-            title="Shewhart Control Chart",
-            xaxis_title="Task Index (within window)",
-            yaxis_title="Engagement Rate",
-            legend_title="Legend"
-        )
-        notification = "Chart has been reset."
+        fig.add_trace(go.Scatter(x=x, y=engagement_rates, mode='lines+markers', name='Engagement Rate'))
+        fig.add_trace(go.Scatter(x=x, y=[cl] * len(x), mode='lines', name='CL'))
+        fig.add_trace(go.Scatter(x=x, y=[ucl] * len(x), mode='lines', name='UCL'))
+        fig.add_trace(go.Scatter(x=x, y=[lcl] * len(x), mode='lines', name='LCL'))
+        notification = "Chart has been reset. Two median values (0.5) added."
         return fig, notification, chart_state
 
+    # Handle simulation interval
+    if "shewhart-sim-interval" in triggered and not sim_disabled:
+        engagement_rate = round(random.uniform(0, 1), 2)
     # Handle engagement rate button click
-    if "shewhart-rate-btn" in triggered:
-        # Extract the JSON part from the triggered string
+    elif "shewhart-rate-btn" in triggered:
         match = re.match(r'(\{.*\})\.n_clicks', triggered)
         if match:
             btn_id = json.loads(match.group(1))
@@ -790,13 +814,11 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev
     else:
         raise dash.exceptions.PreventUpdate
 
-    # Initialize or update chart state
     if not chart_state or 'window_size' not in chart_state:
         chart_state = initialize_control_chart(window_size=window_size)
     else:
         chart_state['window_size'] = window_size
 
-    # Append the engagement rate and update chart
     add_engagement_data(chart_state, engagement_rate, num_stddev=num_stddev)
     chart_data = get_control_chart_data(chart_state)
     engagement_rates = chart_data.get("engagement_rates", [])
@@ -821,16 +843,16 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, window_size, num_stddev
         anomaly_y = [engagement_rates[i] for i in anomaly_x]
         fig.add_trace(go.Scatter(x=anomaly_x, y=anomaly_y, mode='markers', marker=dict(color='red', size=12, symbol='x'), name='Anomaly'))
 
+    notification = ""
+    if anomalies and anomalies[-1] == len(engagement_rates) - 1:
+        notification = html.Div("⚠️ Anomaly detected in the latest engagement rate!", style={"color": "red", "fontWeight": "bold"})
+
     fig.update_layout(
         title="Shewhart Control Chart",
         xaxis_title="Task Index (within window)",
         yaxis_title="Engagement Rate",
         legend_title="Legend"
     )
-
-    notification = ""
-    if anomalies and anomalies[-1] == len(engagement_rates) - 1:
-        notification = html.Div("⚠️ Anomaly detected in the latest engagement rate!", style={"color": "red", "fontWeight": "bold"})
 
     return fig, notification, chart_state
 def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5):
@@ -853,6 +875,14 @@ def get_control_chart_data(chart_state):
         'lcl': chart_state.get('lcl'),
         'anomalies': chart_state.get('anomalies', [])
     }
+
+def sys_simulation_panel():
+    return html.Div([
+        html.H2("System Simulation"),
+        html.P("This panel is under construction. Please check back later for updates."),
+        html.Div(id="sys-simulation-output")
+    ])
+
 
 if __name__ == "__main__":
     app.run(debug=True)
