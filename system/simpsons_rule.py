@@ -16,15 +16,16 @@ def simpsons_rule(y, h):
     y = np.asarray(y)  # Convert input to numpy array for easier manipulation
     n = len(y)         # Number of data points
 
+    # Check if the number of data points is less than 3
+    if n < 3:
+        print("Error: Simpson's Rule requires at least 3 points.")
+        return None
+    
     # Check if the number of data points is even and drop the first point if necessary
     if n % 2 == 0:
-        print("Number of data points is even. Dropping the first data point to apply Simpson's Rule.")
-        y = y[1:]      # Drop the first data point to make n odd
+        print("Number of data points is even. Averaging the first two data points to apply Simpson's Rule.")
+        y = np.concatenate([(y[0] + y[1:2]).mean().reshape(1), y[2:]])  # Replace first two with their average
         n = len(y)
-
-    if n < 3:
-        print("Error: Simpson's Rule requires at least 3 points (after potential dropping).")
-        return None
 
     # Apply Simpson's Rule formula
     integral = y[0] + y[-1]  # Add first and last terms
@@ -57,25 +58,16 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         return None
 
     # --- Robust Range Logic ---
-    # 1. Use historical data if available and valid
+    # Use historical data if available and valid
     if historical_integral_values is not None and len(historical_integral_values) > 1:
         min_range = np.min(historical_integral_values)
         max_range = np.max(historical_integral_values)
         print(f"Using historical data range for discretization: [{min_range:.2f}, {max_range:.2f}]")
     else:
-        # 2. Try to use global cognitive_load_values and h if available
-        cognitive_load_values = globals().get('cognitive_load_values', None)
-        h = globals().get('h', None)
-        if cognitive_load_values is not None and len(cognitive_load_values) > 0 and h is not None:
-            max_range_estimate = np.max(cognitive_load_values) * len(cognitive_load_values) * h
-            max_range = max(max_range_estimate * 1.1, simpsons_integral_value * 1.1)
-            min_range = 0
-            print(f"Using global cognitive_load_values and h for discretization: [{min_range:.2f}, {max_range:.2f}]")
-        else:
-            # 3. Fallback: Use a dynamic range based on the input value
-            min_range = 0
-            max_range = simpsons_integral_value * 2 if simpsons_integral_value > 0 else 100
-            print(f"Using dynamic range based on input value for discretization: [{min_range:.2f}, {max_range:.2f}]")
+        # Fallback: Use a dynamic range based on the input value
+        min_range = 0
+        max_range = simpsons_integral_value * 2 if simpsons_integral_value > 0 else 100
+        print(f"Using dynamic range based on input value for discretization: [{min_range:.2f}, {max_range:.2f}]")
 
     # Ensure min is less than max for bucket creation
     if min_range >= max_range:
@@ -84,7 +76,6 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
         max_range = simpsons_integral_value + 1
         if max_range <= min_range:
             max_range = min_range + 1
-
     # Define the bucket edges
     bins = np.linspace(min_range, max_range, num_buckets + 1).tolist()
 

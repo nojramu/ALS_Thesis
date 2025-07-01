@@ -645,6 +645,9 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
 
          # Add num_buckets to new_params with a default value, or read the value if there is a value
         new_params['num_buckets'] = current_params.get('num_buckets', 10)
+        # Add max_length with default 15 if not present
+        if 'max_length' not in new_params:
+            new_params['max_length'] = 15
 
         return html.Div(
             "Simulation initialized! (You can now proceed with your simulation steps.)",
@@ -725,6 +728,12 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
         new_row['cognitive_load'] = cognitive_load
         new_row['engagement_level'] = engagement_level
         df_global = pd.concat([df_global, pd.DataFrame([new_row])], ignore_index=True)
+
+        # Enforce max length limit on df_global
+        max_length = current_params.get('max_length', 15)
+        if len(df_global) > max_length:
+            df_global = df_global.iloc[-max_length:].reset_index(drop=True)
+
     # Apply Kalman filter if there are at least 3 data points
     if len(df_global) >= 3:
         try:
@@ -781,6 +790,18 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
         html.P(f"Predicted Engagement Level: {engagement_level}"),
         html.P(kalman_msg),
     ]), current_params, fig_cognitive, fig_engagement
+    
+    output_messages = [
+        html.P("Input parameters appended successfully!",
+               style={"color": "green", "fontWeight": "bold"}),
+        html.P(f"Predicted Cognitive Load: {cognitive_load:.2f}"),
+        html.P(f"Predicted Engagement Level: {engagement_level}"),
+        html.P(kalman_msg),
+    ]
+    if simpsons_integral is not None and simpsons_bucket is not None:
+        output_messages.extend([
+            html.P(f"Simpson's Integral: {simpsons_integral:.2f}"),
+            html.P(f"Discretized Bucket: {simpsons_bucket}")
+        ])
         
-
-        
+    return html.Div(output_messages), current_params, fig_cognitive, fig_engagement

@@ -5,8 +5,6 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 from shewhart_control import initialize_control_chart
 
-# import pandas as pd
-
 # --- App Initialization ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 server = app.server
@@ -134,13 +132,6 @@ def rf_panel():
         ], className="mb-2"),
     ]
 
-    # Determine button text and color
-    # if rf_models is None:
-    #     btn_text = "Train Models"
-    #     btn_color = "primary"
-    # else:
-    #     btn_text = "Retrain Models"
-    #     btn_color = "warning"
     btn_text = "Train Models"
     btn_color = "primary"
 
