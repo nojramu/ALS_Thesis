@@ -3,7 +3,7 @@
 Made by: Engr. Marjon D. Umbay  
 Created for paper article in compliance of the subject of:  
 * Numerical Methods and Techniques  
-* Technopreneurship and Innovatio
+* Technopreneurship and Innovation
 
 This document provides an overview of the project structure and functionalities of key folders and modules.
 
