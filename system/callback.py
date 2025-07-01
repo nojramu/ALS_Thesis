@@ -1,4 +1,4 @@
-from app import app
+# callback.py
 import dash
 from dash import html, dcc, Input, Output, State, dash_table, ctx
 from dash.dependencies import ALL
@@ -23,7 +23,7 @@ import plotly.graph_objs as go
 # --- Globals for session state ---
 DATA_PATH = "data/sample_training_data.csv"
 df_global = None
-rf_models = None
+rf_models = None  # Initialize rf_models
 features = None
 metrics = None
 q_table = None
@@ -33,7 +33,7 @@ simpsons_bucket = None
 
 # --- All callbacks go here ---
 
-@app.callback(
+@dash.callback(
     Output("preprocessing-output", "children"),
     Input("upload-data", "contents"),
     State("upload-data", "filename"),
@@ -42,7 +42,7 @@ simpsons_bucket = None
 )
 def handle_preprocessing(uploaded_contents, uploaded_filename, _):
     global df_global
-    ctx = ctx or dash.callback_context
+    ctx = dash.callback_context
     if not ctx.triggered:
         return ""
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -132,7 +132,7 @@ def handle_preprocessing(uploaded_contents, uploaded_filename, _):
             return html.Div("Failed to load data.")
     return ""
 
-@app.callback(
+@dash.callback(
     Output("rf-output", "children"),
     Input("train-rf-btn", "n_clicks"),
     State("rf-test-size", "value"),
@@ -142,7 +142,7 @@ def handle_preprocessing(uploaded_contents, uploaded_filename, _):
 )
 def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
     global df_global, rf_models, features, metrics
-    ctx = ctx or dash.callback_context
+    ctx = dash.callback_context
     if not ctx.triggered:
         return ""
     if df_global is None or df_global.empty:
@@ -193,7 +193,8 @@ def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
         dcc.Graph(figure=clf_fig)
     ])
 
-@app.callback(
+
+@dash.callback(
     Output("rf-test-output", "children"),
     Input("rf-test-btn", "n_clicks"),
     [State(f"rf-test-{f}", "value") for f in [
@@ -225,7 +226,7 @@ def handle_rf_test(n_clicks, *values):
     except Exception as e:
         return html.Div(f"Prediction failed: {e}")
     
-@app.callback(
+@dash.callback(
     Output("kalman-pred-table", "children"),
     Input("upload-predictions", "contents"),
     State("upload-predictions", "filename"),
@@ -233,6 +234,7 @@ def handle_rf_test(n_clicks, *values):
     prevent_initial_call=True
 )
 def handle_kalman_predictions(uploaded_contents, uploaded_filename, n_clicks_sample):
+    global df_global
     import pandas as pd
     from dash.dash_table import DataTable
     ctx = dash.callback_context
@@ -299,7 +301,7 @@ def handle_kalman_predictions(uploaded_contents, uploaded_filename, n_clicks_sam
         ])
     return ""
 
-@app.callback(
+@dash.callback(
     Output("kalman-output", "children"),
     Input("kalman-btn", "n_clicks"),
     State("kalman-pred-table", "children"),
@@ -347,7 +349,7 @@ def handle_kalman(n_clicks, pred_table_children, process_noise, measurement_nois
 
     return dcc.Graph(figure=fig)
 
-@app.callback(
+@dash.callback(
     Output("simpson-output", "children"),
     Input("simpson-btn", "n_clicks"),
     State("simpson-bucket-num", "value"),
@@ -364,7 +366,7 @@ def handle_simpson(_, bucket_num):
         html.P(f"Discretized Bucket (num_buckets={bucket_num or 5}): {simpsons_bucket}")
     ])
 
-@app.callback(
+@dash.callback(
     [Output("qlearn-output", "children"),
      Output("qlearn-heatmap", "figure")],
     Input("qlearn-btn", "n_clicks"),
@@ -408,7 +410,7 @@ def handle_qlearning(n_clicks, episodes, max_steps, lr, gamma, epsilon, eps_deca
         heatmap_fig
     )
 
-@app.callback(
+@dash.callback(
     Output("ql-test-output", "children"),
     Input("ql-test-btn", "n_clicks"),
     State("ql-test-simpson", "value"),
@@ -444,7 +446,7 @@ def handle_ql_test(n_clicks, simpson_level, engagement_level, completed, prev_ty
         html.Ul(top_actions_html)
     ])
 
-@app.callback(
+@dash.callback(
     Output("shewhart-sim-interval", "disabled"),
     Output("shewhart-sim-btn", "children"),
     Input("shewhart-sim-btn", "n_clicks"),
@@ -457,7 +459,7 @@ def toggle_simulation(n_clicks, disabled):
     running = not disabled
     return running, ("Stop" if not disabled else "Simulate")
 
-@app.callback(
+@dash.callback(
     [Output("shewhart-plotly-fig", "figure"),
      Output("shewhart-notification", "children"),
      Output("shewhart-chart-state", "data")],
@@ -568,8 +570,10 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
 
     return fig, notification, chart_state
 
-@app.callback(
+@dash.callback(
     Output("sys-simulation-output", "children"),
+    Output("sys-sim-params", "data"),
+    Output("sys-simulation-graph", "figure"),
     Input("sys-sim-init-btn", "n_clicks"),
     Input("sys-sim-append-btn", "n_clicks"),
     *[State(f"sys-sim-{f}", "value") for f in [
@@ -577,16 +581,26 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
         'task_timed_out', 'time_before_hint_used', 'prev_type'
     ]],
+    State("sys-sim-params", "data"),
     prevent_initial_call=True
 )
-def handle_sys_sim_actions(init_clicks, append_clicks, *values):
+def handle_sys_sim_actions(init_clicks, append_clicks,
+                           engagement_rate, time_on_task_s, hint_ratio, interaction_count,
+                           task_completed, quiz_score, difficulty, error_rate,
+                           task_timed_out, time_before_hint_used, prev_type,
+                           current_params):
     import dash
     ctx = dash.callback_context
-    global rf_models, q_table
+    global rf_models, q_table, df_global
     param_names = [
         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
-        'task_timed_out', 'time_before_hint_used', 'prev_type'
+        'task_timed_out', 'time_before_hint_used', 'prev_type']
+    
+    input_values = [
+        engagement_rate, time_on_task_s, hint_ratio, interaction_count,
+        task_completed, quiz_score, difficulty, error_rate,
+        task_timed_out, time_before_hint_used, prev_type
     ]
     trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
@@ -596,25 +610,55 @@ def handle_sys_sim_actions(init_clicks, append_clicks, *values):
         missing.append("Random Forest models")
     if q_table is None:
         missing.append("Q-Learning agent")
+    
+    # Store values on init
     if trigger == "sys-sim-init-btn":
         if missing:
             return html.Div(
                 f"Please train the following before initializing the simulation: {', '.join(missing)}.",
                 style={"color": "red", "fontWeight": "bold"}
-            )
-        return html.Div(
-            "Simulation initialized! (You can now proceed with your simulation steps.)",
-            style={"color": "green", "fontWeight": "bold"}
-        )
+            ), current_params, go.Figure()
 
-    # Validation for append
-    if trigger == "sys-sim-append-btn":
-        # Unpack values
-        (
+        # Cast values to the correct types
+        try:
+            engagement_rate = float(engagement_rate)
+            time_on_task_s = int(time_on_task_s)
+            hint_ratio = float(hint_ratio)
+            interaction_count = int(interaction_count)
+            task_completed = int(task_completed)
+            quiz_score = int(quiz_score)
+            difficulty = int(difficulty)
+            error_rate = float(error_rate)
+            task_timed_out = int(task_timed_out)
+            time_before_hint_used = int(time_before_hint_used)
+        except ValueError as e:
+            return html.Div(f"Type conversion error: {e}"), current_params, go.Figure()
+
+        df_global = None
+
+        new_params = dict(zip(param_names, (
             engagement_rate, time_on_task_s, hint_ratio, interaction_count,
             task_completed, quiz_score, difficulty, error_rate,
             task_timed_out, time_before_hint_used, prev_type
-        ) = values
+        )))
+
+        return html.Div(
+            "Simulation initialized! (You can now proceed with your simulation steps.)",
+            style={"color": "green", "fontWeight": "bold"}
+        ), new_params, go.Figure()
+
+    # Validation for append
+    if trigger == "sys-sim-append-btn":
+        missing = []
+        if rf_models is None:
+            missing.append("Random Forest models")
+        if q_table is None:
+            missing.append("Q-Learning agent")
+        if missing:
+            return html.Div(
+                f"Please train the following before appending simulation data: {', '.join(missing)}.",
+                style={"color": "red", "fontWeight": "bold"}
+            ), current_params, go.Figure()
 
         errors = []
         if not (0.0 <= float(engagement_rate) <= 1.0):
@@ -644,10 +688,69 @@ def handle_sys_sim_actions(init_clicks, append_clicks, *values):
             return html.Div([
                 html.P("Input validation failed:", style={"color": "red", "fontWeight": "bold"}),
                 html.Ul([html.Li(e) for e in errors])
-            ])
-        # If all checks pass, you can append/store/process the data as needed
-        return html.Div(
-            "Input parameters appended successfully!",
-            style={"color": "green", "fontWeight": "bold"}
-        )
+            ]), current_params, go.Figure() # Return stored parameters
 
+        import pandas as pd
+        input_data = dict(zip(param_names, input_values))
+        new_df = pd.DataFrame([input_data])
+
+        # Preprocess the data (ensure the data types are correct and columns are present)
+        feature_cols = [
+            'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+            'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+            'task_timed_out', 'time_before_hint_used'
+        ]
+
+        new_df = preprocess_data(new_df, feature_cols, is_training_data=False)
+
+    # Predict cognitive load and engagement level
+    try:
+        reg_pred, clf_pred = predict(rf_models, feature_cols, new_df)
+        cognitive_load = reg_pred[0]
+        engagement_level = int(clf_pred[0])
+    except Exception as e:
+        return html.Div(f"Prediction failed: {e}"), current_params, go.Figure()
+
+    # Append to global DataFrame
+    if df_global is None:
+        df_global = new_df.copy()
+        df_global['cognitive_load'] = cognitive_load
+        df_global['engagement_level'] = engagement_level
+    else:
+        new_row = new_df.iloc[0].copy()
+        new_row['cognitive_load'] = cognitive_load
+        new_row['engagement_level'] = engagement_level
+        df_global = pd.concat([df_global, pd.DataFrame([new_row])], ignore_index=True)
+    # Apply Kalman filter if there are at least 3 data points
+    if len(df_global) >= 3:
+        try:
+            df_global = add_kalman_column(df_global, col="cognitive_load", new_col="smoothed_cognitive_load",
+                                   process_noise=0.1, measurement_noise=1.0)
+            kalman_msg = "Kalman filter applied."
+        except Exception as e:
+            kalman_msg = f"Kalman filter failed: {e}"
+    else:
+        kalman_msg = "Kalman filter will be applied after 3 data points."
+
+    # Generate Plotly figure
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df_global.index, y=df_global["cognitive_load"],
+                            mode="lines+markers", name="Original Cognitive Load"))
+    if 'smoothed_cognitive_load' in df_global.columns:
+        fig.add_trace(go.Scatter(x=df_global.index, y=df_global["smoothed_cognitive_load"],
+                                mode="lines+markers", name="Kalman Smoothed"))
+    fig.update_layout(title="Cognitive Load and Kalman Smoothing",
+                      xaxis_title="Index",
+                      yaxis_title="Cognitive Load")
+
+    # If all checks pass, you can append/store/process the data as needed
+    return html.Div([
+        html.P("Input parameters appended successfully!",
+               style={"color": "green", "fontWeight": "bold"}),
+        html.P(f"Predicted Cognitive Load: {cognitive_load:.2f}"),
+        html.P(f"Predicted Engagement Level: {engagement_level}"),
+        html.P(kalman_msg),
+    ]), current_params, fig # Return the same params
+        
+
+        

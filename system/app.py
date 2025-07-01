@@ -86,6 +86,7 @@ def preprocessing_panel():
     ])
 
 def rf_panel():
+    # global rf_models
     sample = {
         'engagement_rate': 0.8, 'time_on_task_s': 450, 'hint_ratio': 0.5, 'interaction_count': 12,
         'task_completed': 1, 'quiz_score': 92, 'difficulty': 3, 'error_rate': 0.2,
@@ -117,6 +118,7 @@ def rf_panel():
         for f in sample
     ]
 
+    # Training parameter inputs
     param_inputs = [
         dbc.Row([
             dbc.Col(html.Label("Test Size:"), width=4),
@@ -132,7 +134,13 @@ def rf_panel():
         ], className="mb-2"),
     ]
 
-    # Always show "Train Models" button; retrain logic is handled in callback
+    # Determine button text and color
+    # if rf_models is None:
+    #     btn_text = "Train Models"
+    #     btn_color = "primary"
+    # else:
+    #     btn_text = "Retrain Models"
+    #     btn_color = "warning"
     btn_text = "Train Models"
     btn_color = "primary"
 
@@ -175,9 +183,6 @@ def kalman_panel():
         html.P("Add your predictions or load sample predictions to proceed."),
         upload_section,
         html.Br(),
-        dbc.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0, color="primary", className="mt-2"),
-        html.Div(id="kalman-output"),
-        html.Hr(),
         dbc.Row([
             dbc.Col(html.Label("Process Noise:"), width=4),
             dbc.Col(dcc.Input(id="kalman-process-noise", type="number", value=0.1, min=0, step=0.01, style={"width": "100%"}), width=8)
@@ -186,6 +191,9 @@ def kalman_panel():
             dbc.Col(html.Label("Measurement Noise:"), width=4),
             dbc.Col(dcc.Input(id="kalman-measurement-noise", type="number", value=1.0, min=0, step=0.01, style={"width": "100%"}), width=8)
         ], className="mb-2"),
+        dbc.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0, color="primary", className="mt-2"),
+        html.Div(id="kalman-output"),
+        html.Hr(),
     ])
 
 def simpson_panel():
@@ -310,28 +318,28 @@ def shewhart_panel():
 def sys_simulation_panel():
     # Define input fields, labels, and info
     param_fields = [
-        ('engagement_rate', "Engagement Rate", "Value between 0.0 and 1.0"),
-        ('time_on_task_s', "Time on Task (s)", "Positive integer (seconds)"),
-        ('hint_ratio', "Hint Ratio", "Value between 0.0 and 1.0"),
-        ('interaction_count', "Interaction Count", "Positive integer"),
-        ('task_completed', "Task Completed", "0 or 1"),
-        ('quiz_score', "Quiz Score", "Integer between 0 and 100"),
-        ('difficulty', "Difficulty", "Positive integer (e.g. 1-10)"),
-        ('error_rate', "Error Rate", "Value between 0.0 and 1.0"),
-        ('task_timed_out', "Task Timed Out", "0 or 1"),
-        ('time_before_hint_used', "Time Before Hint Used", "Positive integer (seconds)"),
-        ('prev_type', "Previous Task Type (A/B/C/D)", "Single letter: A, B, C, or D"),
+        ('engagement_rate', "Engagement Rate", "Value between 0.0 and 1.0", 0.8),
+        ('time_on_task_s', "Time on Task (s)", "Positive integer (seconds)", 450),
+        ('hint_ratio', "Hint Ratio", "Value between 0.0 and 1.0", 0.5),
+        ('interaction_count', "Interaction Count", "Positive integer", 12),
+        ('task_completed', "Task Completed", "0 or 1", 1),
+        ('quiz_score', "Quiz Score", "Integer between 0 and 100", 92),
+        ('difficulty', "Difficulty", "Positive integer (e.g. 1-10)", 3),
+        ('error_rate', "Error Rate", "Value between 0.0 and 1.0", 0.2),
+        ('task_timed_out', "Task Timed Out", "0 or 1", 0),
+        ('time_before_hint_used', "Time Before Hint Used", "Positive integer (seconds)", 120),
+        ('prev_type', "Previous Task Type (A/B/C/D)", "Single letter: A, B, C, or D", 'A'),
     ]
-
+    default_values = {field: default for field, _, _, default in param_fields}
     # Arrange inputs in two columns with info
     left_col = []
     right_col = []
-    for i, (field, label, info) in enumerate(param_fields):
+    for i, (field, label, info, default_val) in enumerate(param_fields):
         input_type = "number" if field != "prev_type" else "text"
-        default_val = 0 if input_type == "number" else "A"
         input_box = dbc.Row([
             dbc.Col([
                 html.Label(label),
+                html.Br(),
                 html.Small(info, style={"color": "#888", "fontSize": "80%"})
             ], width=6),
             dbc.Col(dcc.Input(id=f"sys-sim-{field}", type=input_type, value=default_val, style={"width": "100%"}), width=6)
@@ -344,15 +352,16 @@ def sys_simulation_panel():
     return html.Div([
         html.H2("System Simulation"),
         html.P("Enter simulation parameters below. Please ensure all values are within the specified ranges."),
+        dcc.Store(id="sys-sim-params", data=default_values),
         dbc.Button("Initialize", id="sys-sim-init-btn", n_clicks=0, color="primary", className="mb-2"),
         dbc.Button("Append", id="sys-sim-append-btn", n_clicks=0, color="success", className="mb-2", style={"marginLeft": "10px"}),
+        html.Div(id="sys-simulation-output", className="mt-3"),
+        dcc.Graph(id="sys-simulation-graph", figure=go.Figure()),
         dbc.Row([
             dbc.Col(left_col, width=6),
             dbc.Col(right_col, width=6)
-        ]),
-        html.Div(id="sys-simulation-output", className="mt-3")
+    ]),
     ])
-
 # Move this import here, after all app/layout definitions
 import callback  # Register all callbacks
 
