@@ -303,6 +303,14 @@ def shewhart_panel():
         dcc.Interval(id="shewhart-sim-interval", interval=1000, n_intervals=0, disabled=True),
         dbc.Button("Reset Chart", id="shewhart-reset-btn", n_clicks=0, color="secondary", className="mt-2"),
         html.Div(id="shewhart-notification", className="mt-2"),
+        # Feedback input area, initially hidden
+        html.Div([
+            dbc.Label("Adjust Difficulty:", className="mb-2"),
+            dcc.Input(id="shewhart-feedback-input", type="number", min=0, max=10, step=1, placeholder="Enter difficulty (0-10)", className="mb-2", style={"width": "100%"}),
+            html.Br(),
+            dbc.Button("Submit Feedback", id="shewhart-feedback-submit", n_clicks=0, color="primary", className="mb-3"),
+            html.Div(id="shewhart-feedback-response", className="mt-2")
+        ], id="shewhart-feedback-container", style={"display": "none"}),
         dcc.Graph(id="shewhart-plotly-fig", style={"height": "400px"}),
     ])
 

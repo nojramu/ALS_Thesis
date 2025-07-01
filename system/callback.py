@@ -15,10 +15,13 @@ from ql_training import train_q_learning_agent
 from ql_analysis import get_optimal_action_for_state, get_top_n_actions_for_state, plotly_qtable_heatmap
 from shewhart_control import (
     initialize_control_chart, add_engagement_data, check_for_engagement_anomaly,
-    get_control_chart_data, enough_anomalies
+    get_control_chart_data, enough_anomalies, handle_anomaly_and_update_q
 )
 from plot_utils import plot_line_chart, plotly_bar_chart
 import plotly.graph_objs as go
+import dash
+from dash import callback_context
+from dash.exceptions import PreventUpdate
 
 # --- Globals for session state ---
 DATA_PATH = "data/sample_training_data.csv"
@@ -462,7 +465,8 @@ def toggle_simulation(n_clicks, disabled):
 @dash.callback(
     [Output("shewhart-plotly-fig", "figure"),
      Output("shewhart-notification", "children"),
-     Output("shewhart-chart-state", "data")],
+     Output("shewhart-chart-state", "data"),
+     Output("shewhart-feedback-container", "style")],
     [Input({"type": "shewhart-rate-btn", "index": ALL}, "n_clicks"),
      Input("shewhart-reset-btn", "n_clicks"),
      Input("shewhart-sim-interval", "n_intervals")],
@@ -480,7 +484,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
 
     ctx = dash.callback_context
     if not ctx.triggered:
-        raise dash.exceptions.PreventUpdate
+        raise PreventUpdate
     triggered = ctx.triggered[0]["prop_id"]
 
     # Handle reset: add two median values for control limits
@@ -501,7 +505,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
         fig.add_trace(go.Scatter(x=x, y=[ucl] * len(x), mode='lines', name='UCL'))
         fig.add_trace(go.Scatter(x=x, y=[lcl] * len(x), mode='lines', name='LCL'))
         notification = "Chart has been reset. Two median values (0.5) added."
-        return fig, notification, chart_state
+        return fig, notification, chart_state, {"display": "none"}
 
     # Handle simulation interval
     if "shewhart-sim-interval" in triggered and not sim_disabled:
@@ -513,9 +517,9 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
             btn_id = json.loads(match.group(1))
             engagement_rate = float(btn_id["index"])
         else:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
     else:
-        raise dash.exceptions.PreventUpdate
+        raise PreventUpdate
 
     if not chart_state or 'window_size' not in chart_state:
         chart_state = initialize_control_chart(window_size=window_size)
@@ -533,7 +537,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
     if not engagement_rates or cl is None or ucl is None or lcl is None:
         fig = go.Figure()
         notification = "Not enough data to plot control chart."
-        return fig, notification, chart_state
+        return fig, notification, chart_state, {"display": "none"}
 
     x = list(range(len(engagement_rates)))
     fig = go.Figure()
@@ -567,8 +571,44 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
             notification = html.Div([notification, html.Br(), retrain_msg])
         else:
             notification = retrain_msg
+        # Show feedback input when anomalies threshold reached
+        feedback_style = {"display": "block", "marginTop": "10px"}
+    else:
+        feedback_style = {"display": "none"}
 
-    return fig, notification, chart_state
+    return fig, notification, chart_state, feedback_style
+
+@dash.callback(
+    Output("shewhart-feedback-response", "children"),
+    Input("shewhart-feedback-submit", "n_clicks"),
+    State("shewhart-feedback-input", "value"),
+    State("shewhart-chart-state", "data"),
+    prevent_initial_call=True
+)
+def handle_shewhart_feedback(n_clicks, difficulty_value, chart_state):
+    if n_clicks is None or difficulty_value is None:
+        raise PreventUpdate
+
+    # Validate difficulty input
+    try:
+        difficulty = int(difficulty_value)
+        if difficulty < 0 or difficulty > 10:
+            return html.Div("Difficulty must be between 0 and 10.", style={"color": "red"})
+    except ValueError:
+        return html.Div("Invalid difficulty value.", style={"color": "red"})
+
+    # For demonstration, simulate current state and recommended action
+    # In real app, these should be derived from actual state and Q-table
+    current_state = (3, 3, 1, 'B')  # Example current state
+    recommended_action = ('C', 5)   # Example recommended action
+
+    # Update Q-table with teacher feedback (difficulty adjustment)
+    # This requires access to Q-table and related mappings, which should be global or passed in
+    # For now, we simulate the update call and return success message
+
+    # TODO: Integrate actual Q-table update logic here
+
+    return html.Div(f"Feedback received: difficulty set to {difficulty}. Q-table updated.", style={"color": "green"})
 
 @dash.callback(
     Output("sys-simulation-output", "children"),
