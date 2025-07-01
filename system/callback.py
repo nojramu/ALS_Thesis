@@ -586,6 +586,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
     prevent_initial_call=True
 )
 def handle_shewhart_feedback(n_clicks, difficulty_value, chart_state):
+    global q_table
     if n_clicks is None or difficulty_value is None:
         raise PreventUpdate
 
@@ -603,12 +604,25 @@ def handle_shewhart_feedback(n_clicks, difficulty_value, chart_state):
     recommended_action = ('C', 5)   # Example recommended action
 
     # Update Q-table with teacher feedback (difficulty adjustment)
-    # This requires access to Q-table and related mappings, which should be global or passed in
-    # For now, we simulate the update call and return success message
+    if q_table is None:
+        return html.Div("Q-table not initialized.", style={"color": "red"})
 
-    # TODO: Integrate actual Q-table update logic here
+    # Use the handle_anomaly_and_update_q function from shewhart_control.py
+    reward = handle_anomaly_and_update_q(
+        current_state=current_state,
+        action=recommended_action,
+        next_state=current_state,  # For simplicity, assume next_state same as current_state
+        q_table=q_table,
+        state_to_index=globals().get('state_to_index', {}),
+        action_to_index=globals().get('action_to_index', {}),
+        learning_rate=0.1,
+        discount_factor=0.9,
+        anomaly_detected=True,
+        teacher_override_enabled=False,
+        default_anomaly_reward=-20.0
+    )
 
-    return html.Div(f"Feedback received: difficulty set to {difficulty}. Q-table updated.", style={"color": "green"})
+    return html.Div(f"Feedback received: difficulty set to {difficulty}. Q-table updated with reward {reward}.", style={"color": "green"})
 
 @dash.callback(
     Output("sys-simulation-output", "children"),
