@@ -237,7 +237,7 @@ def qlearning_panel():
         ], className="mb-2"),
         dbc.Row([
             dbc.Col(html.Label("Number of Buckets (Simpson):"), width=4),
-            dbc.Col(dcc.Input(id="qlearn-buckets", type="number", value=10, min=3, max=20, step=1, style={"width": "100%"}), width=8)
+            dbc.Col(dcc.Input(id="qlearn-buckets", type="number", value=5, min=3, max=10, step=1, style={"width": "100%"}), width=8)
         ], className="mb-2"),
     ]
     # Testing input fields
@@ -320,7 +320,7 @@ def sys_simulation_panel():
         ('task_timed_out', "Task Timed Out", "0 or 1", 0),
         ('time_before_hint_used', "Time Before Hint Used", "Positive integer (seconds)", 120),
         ('prev_type', "Previous Task Type (A/B/C/D)", "Single letter: A, B, C, or D", 'A'),
-        ('num_buckets', "Number of buckets", "Number of bucket use for Simpson's Rule", 10), # <-- ADD THIS
+        ('num_buckets', "Number of buckets", "Number of bucket use for Simpson's Rule", 5),
     ]
     default_values = {field: default for field, _, _, default in param_fields}
     # Arrange inputs in two columns with info
