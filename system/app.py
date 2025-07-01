@@ -194,9 +194,9 @@ def simpson_panel():
         dcc.Slider(
             id="simpson-bucket-num",
             min=3,
-            max=20,
+            max=10,
             step=1,
-            value=10,
+            value=5,
             marks={i: str(i) for i in range(3, 11)},
             tooltip={"placement": "bottom", "always_visible": True}
         ),
