@@ -203,9 +203,9 @@ def simpson_panel():
         dcc.Slider(
             id="simpson-bucket-num",
             min=3,
-            max=10,
+            max=20,
             step=1,
-            value=5,
+            value=10,
             marks={i: str(i) for i in range(3, 11)},
             tooltip={"placement": "bottom", "always_visible": True}
         ),
@@ -246,7 +246,7 @@ def qlearning_panel():
         ], className="mb-2"),
         dbc.Row([
             dbc.Col(html.Label("Number of Buckets (Simpson):"), width=4),
-            dbc.Col(dcc.Input(id="qlearn-buckets", type="number", value=5, min=3, max=10, step=1, style={"width": "100%"}), width=8)
+            dbc.Col(dcc.Input(id="qlearn-buckets", type="number", value=10, min=3, max=20, step=1, style={"width": "100%"}), width=8)
         ], className="mb-2"),
     ]
     # Testing input fields
@@ -329,6 +329,7 @@ def sys_simulation_panel():
         ('task_timed_out', "Task Timed Out", "0 or 1", 0),
         ('time_before_hint_used', "Time Before Hint Used", "Positive integer (seconds)", 120),
         ('prev_type', "Previous Task Type (A/B/C/D)", "Single letter: A, B, C, or D", 'A'),
+        ('num_buckets', "Number of buckets", "Number of bucket use for Simpson's Rule", 10), # <-- ADD THIS
     ]
     default_values = {field: default for field, _, _, default in param_fields}
     # Arrange inputs in two columns with info
@@ -356,7 +357,10 @@ def sys_simulation_panel():
         dbc.Button("Initialize", id="sys-sim-init-btn", n_clicks=0, color="primary", className="mb-2"),
         dbc.Button("Append", id="sys-sim-append-btn", n_clicks=0, color="success", className="mb-2", style={"marginLeft": "10px"}),
         html.Div(id="sys-simulation-output", className="mt-3"),
-        dcc.Graph(id="sys-simulation-graph", figure=go.Figure()),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="sys-simulation-graph", figure=go.Figure()), width=6),
+            dbc.Col(dcc.Graph(id="sys-engagement-graph", figure=go.Figure()), width=6)
+        ]),
         dbc.Row([
             dbc.Col(left_col, width=6),
             dbc.Col(right_col, width=6)

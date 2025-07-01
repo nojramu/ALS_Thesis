@@ -574,6 +574,7 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
     Output("sys-simulation-output", "children"),
     Output("sys-sim-params", "data"),
     Output("sys-simulation-graph", "figure"),
+    Output("sys-engagement-graph", "figure"),
     Input("sys-sim-init-btn", "n_clicks"),
     Input("sys-sim-append-btn", "n_clicks"),
     *[State(f"sys-sim-{f}", "value") for f in [
@@ -591,7 +592,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
                            current_params):
     import dash
     ctx = dash.callback_context
-    global rf_models, q_table, df_global
+    global rf_models, q_table, df_global, simpsons_integral, simpsons_bucket
     param_names = [
         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
@@ -617,7 +618,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
             return html.Div(
                 f"Please train the following before initializing the simulation: {', '.join(missing)}.",
                 style={"color": "red", "fontWeight": "bold"}
-            ), current_params, go.Figure()
+            ), current_params, go.Figure(), go.Figure()
 
         # Cast values to the correct types
         try:
@@ -632,7 +633,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
             task_timed_out = int(task_timed_out)
             time_before_hint_used = int(time_before_hint_used)
         except ValueError as e:
-            return html.Div(f"Type conversion error: {e}"), current_params, go.Figure()
+            return html.Div(f"Type conversion error: {e}"), current_params, go.Figure(), go.Figure()
 
         df_global = None
 
@@ -642,10 +643,13 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
             task_timed_out, time_before_hint_used, prev_type
         )))
 
+         # Add num_buckets to new_params with a default value, or read the value if there is a value
+        new_params['num_buckets'] = current_params.get('num_buckets', 10)
+
         return html.Div(
             "Simulation initialized! (You can now proceed with your simulation steps.)",
             style={"color": "green", "fontWeight": "bold"}
-        ), new_params, go.Figure()
+        ), new_params, go.Figure(), go.Figure()
 
     # Validation for append
     if trigger == "sys-sim-append-btn":
@@ -658,7 +662,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
             return html.Div(
                 f"Please train the following before appending simulation data: {', '.join(missing)}.",
                 style={"color": "red", "fontWeight": "bold"}
-            ), current_params, go.Figure()
+            ), current_params, go.Figure(), go.Figure()
 
         errors = []
         if not (0.0 <= float(engagement_rate) <= 1.0):
@@ -688,7 +692,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
             return html.Div([
                 html.P("Input validation failed:", style={"color": "red", "fontWeight": "bold"}),
                 html.Ul([html.Li(e) for e in errors])
-            ]), current_params, go.Figure() # Return stored parameters
+            ]), current_params, go.Figure(), go.Figure() # Return stored parameters
 
         import pandas as pd
         input_data = dict(zip(param_names, input_values))
@@ -709,7 +713,7 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
         cognitive_load = reg_pred[0]
         engagement_level = int(clf_pred[0])
     except Exception as e:
-        return html.Div(f"Prediction failed: {e}"), current_params, go.Figure()
+        return html.Div(f"Prediction failed: {e}"), current_params, go.Figure(), go.Figure()
 
     # Append to global DataFrame
     if df_global is None:
@@ -732,25 +736,51 @@ def handle_sys_sim_actions(init_clicks, append_clicks,
     else:
         kalman_msg = "Kalman filter will be applied after 3 data points."
 
-    # Generate Plotly figure
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_global.index, y=df_global["cognitive_load"],
+    # Compute Simpson's integral and bucketization on cognitive load
+    h = 3  # Step size for Simpson's rule
+    if df_global is not None and 'smoothed_cognitive_load' in df_global.columns:
+        simpsons_integral = simpsons_rule(df_global['smoothed_cognitive_load'], h)
+        # Pass the num_buckets from state, default to 10 if missing (or any suitable default)
+        num_buckets = current_params.get('num_buckets', 10)
+        simpsons_bucket = discretize_simpsons_result(simpsons_integral, num_buckets=num_buckets)
+        cognitive_level = simpsons_bucket
+    else:
+        simpsons_integral = None
+        simpsons_bucket = None
+        cognitive_level = None
+
+    # Generate cognitive load figure (same as before)
+    fig_cognitive = go.Figure()
+    fig_cognitive.add_trace(go.Scatter(x=df_global.index, y=df_global["cognitive_load"],
                             mode="lines+markers", name="Original Cognitive Load"))
     if 'smoothed_cognitive_load' in df_global.columns:
-        fig.add_trace(go.Scatter(x=df_global.index, y=df_global["smoothed_cognitive_load"],
+        fig_cognitive.add_trace(go.Scatter(x=df_global.index, y=df_global["smoothed_cognitive_load"],
                                 mode="lines+markers", name="Kalman Smoothed"))
-    fig.update_layout(title="Cognitive Load and Kalman Smoothing",
+    fig_cognitive.update_layout(title="Cognitive Load and Kalman Smoothing",
                       xaxis_title="Index",
                       yaxis_title="Cognitive Load")
 
-    # If all checks pass, you can append/store/process the data as needed
+    # Generate engagement level figure with cognitive level as a horizontal line
+    fig_engagement = go.Figure()
+    if df_global is not None and "engagement_level" in df_global.columns:
+        fig_engagement.add_trace(go.Scatter(x=df_global.index, y=df_global["engagement_level"],
+                                           mode="lines+markers", name="Engagement Level"))
+    if cognitive_level is not None:
+        fig_engagement.add_hline(y=cognitive_level, line_dash="dash", line_color="red",
+                                annotation_text=f"Cognitive Level (Bucket): {cognitive_level}",
+                                annotation_position="top right")
+    fig_engagement.update_layout(title="Engagement Level with Cognitive Level",
+                                 xaxis_title="Index",
+                                 yaxis_title="Engagement Level")
+
+    # Return all outputs
     return html.Div([
         html.P("Input parameters appended successfully!",
                style={"color": "green", "fontWeight": "bold"}),
         html.P(f"Predicted Cognitive Load: {cognitive_load:.2f}"),
         html.P(f"Predicted Engagement Level: {engagement_level}"),
         html.P(kalman_msg),
-    ]), current_params, fig # Return the same params
+    ]), current_params, fig_cognitive, fig_engagement
         
 
         
