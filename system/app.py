@@ -1,20 +1,21 @@
 import dash
 from dash import dcc, html, Input, Output, State, dash_table
+from dash.dependencies import ALL
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objs as go
-import os
-from dash.dependencies import ALL
-
 from data_handling import load_csv, preprocess_data
-from random_forest import train_models
+from random_forest import train_models, predict
 from kalman_filter import add_kalman_column
 from simpsons_rule import simpsons_rule, discretize_simpsons_result
 from ql_setup import define_state_space, define_action_space, initialize_q_table
 from ql_training import train_q_learning_agent
-from shewhart_control import initialize_control_chart, add_engagement_data, check_for_engagement_anomaly, get_control_chart_data, enough_anomalies
+from ql_analysis import get_optimal_action_for_state, get_top_n_actions_for_state, plotly_qtable_heatmap
+from shewhart_control import (
+    initialize_control_chart, add_engagement_data, check_for_engagement_anomaly,
+    get_control_chart_data, enough_anomalies
+)
 from plot_utils import plot_line_chart, plotly_bar_chart
-from ql_analysis import get_optimal_action_for_state, plotly_qtable_heatmap
 
 # --- App Initialization ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -251,6 +252,7 @@ def rf_panel():
         html.H2("Random Forest"),
         html.P("Click 'Train Models' after loading and preprocessing data."),
         dbc.Button("Train Models", id="train-rf-btn", n_clicks=0, color="primary", className="mt-2"),
+        dbc.Button("Retrain Models", id="retrain-rf-btn", n_clicks=0, color="warning", className="mt-2", style={"marginLeft": "10px"}),
         html.Div(id="rf-output"),
         html.Hr(),
         html.H4("Test Model with Custom Input"),
@@ -273,16 +275,19 @@ def rf_panel():
 
 @app.callback(
     Output("rf-output", "children"),
-    Input("train-rf-btn", "n_clicks"),
+    [Input("train-rf-btn", "n_clicks"),
+     Input("retrain-rf-btn", "n_clicks")],
     State("rf-test-size", "value"),
     State("rf-random-state", "value"),
     State("rf-n-estimators", "value"),
     prevent_initial_call=True
 )
-def handle_rf_train(n_clicks, test_size, random_state, n_estimators):
+def handle_rf_train(train_clicks, retrain_clicks, test_size, random_state, n_estimators):
     global df_global, rf_models, features, metrics
-    if not n_clicks:
-        return ""  # Don't show anything until button is clicked
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return ""
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if df_global is None or df_global.empty:
         return html.Div("Please load and preprocess data first.")
@@ -304,7 +309,6 @@ def handle_rf_train(n_clicks, test_size, random_state, n_estimators):
                                                n_estimators=n_estimators)
     rf_models = (reg, clf)
 
-    # Plot feature importance for regression model
     reg_importance = reg.feature_importances_
     reg_fig = plotly_bar_chart(
         x=feature_cols,
@@ -312,10 +316,8 @@ def handle_rf_train(n_clicks, test_size, random_state, n_estimators):
         xlabel="Feature",
         ylabel="Importance",
         title="Random Forest Feature Importance (Regression)",
-        color='indigo'  # or any color you want
+        color='indigo'
     )
-
-    # Plot feature importance for classification model
     clf_importance = clf.feature_importances_
     clf_fig = plotly_bar_chart(
         x=feature_cols,
@@ -323,10 +325,15 @@ def handle_rf_train(n_clicks, test_size, random_state, n_estimators):
         xlabel="Feature",
         ylabel="Importance",
         title="Random Forest Feature Importance (Classification)",
-        color='green'  # or any color you want
+        color='green'
     )
 
+    retrain_msg = ""
+    if trigger == "retrain-rf-btn":
+        retrain_msg = html.P("Models retrained due to engagement anomalies.", style={"color": "orange", "fontWeight": "bold"})
+
     return html.Div([
+        retrain_msg,
         html.P(f"Regression MSE: {metrics['mse']:.4f}"),
         html.P(f"Classification Accuracy: {metrics['accuracy']:.4f}"),
         html.P("Models trained and stored in memory."),
@@ -360,7 +367,6 @@ def handle_rf_test(n_clicks, *values):
     input_dict = dict(zip(feature_cols, values))
     new_data = pd.DataFrame([input_dict])
     try:
-        from random_forest import predict
         reg_pred, clf_pred = predict(rf_models, feature_cols, new_data)
         return html.Div([
             html.P(f"Predicted Cognitive Load: {reg_pred[0]:.2f}"),
@@ -698,7 +704,7 @@ def handle_ql_test(n_clicks, simpson_level, engagement_level, completed, prev_ty
         return html.Div("No valid action found for this state.")
 
     # Show top 5 actions
-    top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5)
+    top_actions = get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, action_to_index, n=5)
     top_actions_html = [
         html.Li(f"{i+1}. Task: {a[0][0]}, Difficulty: {a[0][1]}, Q-value: {a[1]:.4f}")
         for i, a in enumerate(top_actions)
@@ -855,45 +861,82 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
         ], style={"color": "red", "fontWeight": "bold"})
 
     # Check for enough anomalies to suggest retraining/adaptation
-    if enough_anomalies(chart_state, threshold=2):  # You can adjust the threshold
+    if enough_anomalies(chart_state, threshold=2):
         retrain_msg = html.Div(
-            "⚠️ Multiple anomalies detected! Consider retraining the Random Forest models or adapting the system.",
+            "⚠️ Multiple anomalies detected! Please retrain the Random Forest models.",
             style={"color": "orange", "fontWeight": "bold", "marginTop": "10px"}
         )
-        # If there is already a notification, append the retrain message
         if notification:
             notification = html.Div([notification, html.Br(), retrain_msg])
         else:
             notification = retrain_msg
 
     return fig, notification, chart_state
-def get_top_n_actions_for_state(state, q_table, state_to_index, index_to_action, n=5):
-    """Return a list of (action, q_value) tuples for the top-N actions for a given state."""
-    if state not in state_to_index:
-        return []
-    state_idx = state_to_index[state]
-    q_values = q_table[state_idx]
-    top_indices = q_values.argsort()[::-1][:n]
-    return [(index_to_action[i], q_values[i]) for i in top_indices]
-
-def get_control_chart_data(chart_state):
-    """
-    Always return a dict with all keys, even if values are None or empty.
-    """
-    return {
-        'engagement_rates': chart_state.get('engagement_data', []),
-        'cl': chart_state.get('cl'),
-        'ucl': chart_state.get('ucl'),
-        'lcl': chart_state.get('lcl'),
-        'anomalies': chart_state.get('anomalies', [])
-    }
 
 def sys_simulation_panel():
+    # Define input fields and their labels
+    param_fields = [
+        ('engagement_rate', "Engagement Rate"),
+        ('time_on_task_s', "Time on Task (s)"),
+        ('hint_ratio', "Hint Ratio"),
+        ('interaction_count', "Interaction Count"),
+        ('task_completed', "Task Completed"),
+        ('quiz_score', "Quiz Score"),
+        ('difficulty', "Difficulty"),
+        ('error_rate', "Error Rate"),
+        ('task_timed_out', "Task Timed Out"),
+        ('time_before_hint_used', "Time Before Hint Used"),
+        ('prev_type', "Previous Task Type (A/B/C/D)")
+    ]
+
+    # Arrange inputs in two columns
+    left_col = []
+    right_col = []
+    for i, (field, label) in enumerate(param_fields):
+        input_type = "number" if field != "prev_type" else "text"
+        default_val = 0 if input_type == "number" else "A"
+        input_box = dbc.Row([
+            dbc.Col(html.Label(label), width=6),
+            dbc.Col(dcc.Input(id=f"sys-sim-{field}", type=input_type, value=default_val, style={"width": "100%"}), width=6)
+        ], className="mb-2")
+        if i % 2 == 0:
+            left_col.append(input_box)
+        else:
+            right_col.append(input_box)
+
     return html.Div([
         html.H2("System Simulation"),
-        html.P("This panel is under construction. Please check back later for updates."),
-        html.Div(id="sys-simulation-output")
+        html.P("This panel allows you to run a full pipeline simulation."),
+        dbc.Button("Initialize Simulation", id="sys-sim-init-btn", n_clicks=0, color="primary", className="mb-2"),
+        dbc.Row([
+            dbc.Col(left_col, width=6),
+            dbc.Col(right_col, width=6)
+        ]),
+        html.Div(id="sys-simulation-output", className="mt-3")
     ])
+
+@app.callback(
+    Output("sys-simulation-output", "children"),
+    Input("sys-sim-init-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def handle_sys_sim_init(n_clicks):
+    global rf_models, q_table
+    missing = []
+    if rf_models is None:
+        missing.append("Random Forest models")
+    if q_table is None:
+        missing.append("Q-Learning agent")
+    if missing:
+        return html.Div(
+            f"Please train the following before initializing the simulation: {', '.join(missing)}.",
+            style={"color": "red", "fontWeight": "bold"}
+        )
+    # If both models are trained, proceed with simulation initialization
+    return html.Div(
+        "Simulation initialized! (You can now proceed with your simulation steps.)",
+        style={"color": "green", "fontWeight": "bold"}
+    )
 
 
 if __name__ == "__main__":
