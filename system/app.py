@@ -880,29 +880,32 @@ def update_shewhart_chart(rate_btn_clicks, reset_clicks, sim_intervals, window_s
     return fig, notification, chart_state
 
 def sys_simulation_panel():
-    # Define input fields and their labels
+    # Define input fields, labels, and info
     param_fields = [
-        ('engagement_rate', "Engagement Rate"),
-        ('time_on_task_s', "Time on Task (s)"),
-        ('hint_ratio', "Hint Ratio"),
-        ('interaction_count', "Interaction Count"),
-        ('task_completed', "Task Completed"),
-        ('quiz_score', "Quiz Score"),
-        ('difficulty', "Difficulty"),
-        ('error_rate', "Error Rate"),
-        ('task_timed_out', "Task Timed Out"),
-        ('time_before_hint_used', "Time Before Hint Used"),
-        ('prev_type', "Previous Task Type (A/B/C/D)")
+        ('engagement_rate', "Engagement Rate", "Value between 0.0 and 1.0"),
+        ('time_on_task_s', "Time on Task (s)", "Positive integer (seconds)"),
+        ('hint_ratio', "Hint Ratio", "Value between 0.0 and 1.0"),
+        ('interaction_count', "Interaction Count", "Positive integer"),
+        ('task_completed', "Task Completed", "0 or 1"),
+        ('quiz_score', "Quiz Score", "Integer between 0 and 100"),
+        ('difficulty', "Difficulty", "Positive integer (e.g. 1-10)"),
+        ('error_rate', "Error Rate", "Value between 0.0 and 1.0"),
+        ('task_timed_out', "Task Timed Out", "0 or 1"),
+        ('time_before_hint_used', "Time Before Hint Used", "Positive integer (seconds)"),
+        ('prev_type', "Previous Task Type (A/B/C/D)", "Single letter: A, B, C, or D"),
     ]
 
-    # Arrange inputs in two columns
+    # Arrange inputs in two columns with info
     left_col = []
     right_col = []
-    for i, (field, label) in enumerate(param_fields):
+    for i, (field, label, info) in enumerate(param_fields):
         input_type = "number" if field != "prev_type" else "text"
         default_val = 0 if input_type == "number" else "A"
         input_box = dbc.Row([
-            dbc.Col(html.Label(label), width=6),
+            dbc.Col([
+                html.Label(label),
+                html.Small(info, style={"color": "#888", "fontSize": "80%"})
+            ], width=6),
             dbc.Col(dcc.Input(id=f"sys-sim-{field}", type=input_type, value=default_val, style={"width": "100%"}), width=6)
         ], className="mb-2")
         if i % 2 == 0:
@@ -912,8 +915,9 @@ def sys_simulation_panel():
 
     return html.Div([
         html.H2("System Simulation"),
-        html.P("This panel allows you to run a full pipeline simulation."),
-        dbc.Button("Initialize Simulation", id="sys-sim-init-btn", n_clicks=0, color="primary", className="mb-2"),
+        html.P("Enter simulation parameters below. Please ensure all values are within the specified ranges."),
+        dbc.Button("Initialize", id="sys-sim-init-btn", n_clicks=0, color="primary", className="mb-2"),
+        dbc.Button("Append", id="sys-sim-append-btn", n_clicks=0, color="success", className="mb-2", style={"marginLeft": "10px"}),
         dbc.Row([
             dbc.Col(left_col, width=6),
             dbc.Col(right_col, width=6)
@@ -924,26 +928,82 @@ def sys_simulation_panel():
 @app.callback(
     Output("sys-simulation-output", "children"),
     Input("sys-sim-init-btn", "n_clicks"),
+    Input("sys-sim-append-btn", "n_clicks"),
+    *[State(f"sys-sim-{f}", "value") for f in [
+        'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+        'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+        'task_timed_out', 'time_before_hint_used', 'prev_type'
+    ]],
     prevent_initial_call=True
 )
-def handle_sys_sim_init(n_clicks):
+def handle_sys_sim_actions(init_clicks, append_clicks, *values):
+    import dash
+    ctx = dash.callback_context
     global rf_models, q_table
+    param_names = [
+        'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
+        'task_completed', 'quiz_score', 'difficulty', 'error_rate',
+        'task_timed_out', 'time_before_hint_used', 'prev_type'
+    ]
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+
+    # Model check for both buttons
     missing = []
     if rf_models is None:
         missing.append("Random Forest models")
     if q_table is None:
         missing.append("Q-Learning agent")
-    if missing:
+    if trigger == "sys-sim-init-btn":
+        if missing:
+            return html.Div(
+                f"Please train the following before initializing the simulation: {', '.join(missing)}.",
+                style={"color": "red", "fontWeight": "bold"}
+            )
         return html.Div(
-            f"Please train the following before initializing the simulation: {', '.join(missing)}.",
-            style={"color": "red", "fontWeight": "bold"}
+            "Simulation initialized! (You can now proceed with your simulation steps.)",
+            style={"color": "green", "fontWeight": "bold"}
         )
-    # If both models are trained, proceed with simulation initialization
-    return html.Div(
-        "Simulation initialized! (You can now proceed with your simulation steps.)",
-        style={"color": "green", "fontWeight": "bold"}
-    )
 
+    # Validation for append
+    if trigger == "sys-sim-append-btn":
+        # Unpack values
+        (
+            engagement_rate, time_on_task_s, hint_ratio, interaction_count,
+            task_completed, quiz_score, difficulty, error_rate,
+            task_timed_out, time_before_hint_used, prev_type
+        ) = values
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        errors = []
+        if not (0.0 <= float(engagement_rate) <= 1.0):
+            errors.append("Engagement Rate must be between 0.0 and 1.0.")
+        if not (isinstance(time_on_task_s, (int, float)) and time_on_task_s > 0):
+            errors.append("Time on Task must be a positive number.")
+        if not (0.0 <= float(hint_ratio) <= 1.0):
+            errors.append("Hint Ratio must be between 0.0 and 1.0.")
+        if not (isinstance(interaction_count, (int, float)) and interaction_count >= 0):
+            errors.append("Interaction Count must be a non-negative number.")
+        if task_completed not in [0, 1]:
+            errors.append("Task Completed must be 0 or 1.")
+        if not (0 <= int(quiz_score) <= 100):
+            errors.append("Quiz Score must be between 0 and 100.")
+        if not (isinstance(difficulty, (int, float)) and difficulty > 0):
+            errors.append("Difficulty must be a positive number.")
+        if not (0.0 <= float(error_rate) <= 1.0):
+            errors.append("Error Rate must be between 0.0 and 1.0.")
+        if task_timed_out not in [0, 1]:
+            errors.append("Task Timed Out must be 0 or 1.")
+        if not (isinstance(time_before_hint_used, (int, float)) and time_before_hint_used >= 0):
+            errors.append("Time Before Hint Used must be a non-negative number.")
+        if str(prev_type).upper() not in ["A", "B", "C", "D"]:
+            errors.append("Previous Task Type must be one of: A, B, C, D.")
+
+        if errors:
+            return html.Div([
+                html.P("Input validation failed:", style={"color": "red", "fontWeight": "bold"}),
+                html.Ul([html.Li(e) for e in errors])
+            ])
+        # If all checks pass, you can append/store/process the data as needed
+        return html.Div(
+            "Input parameters appended successfully!",
+            style={"color": "green", "fontWeight": "bold"}
+        )
