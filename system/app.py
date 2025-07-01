@@ -210,18 +210,11 @@ def handle_preprocessing(uploaded_contents, uploaded_filename, _):
     return ""
 
 def rf_panel():
-    # Sample values for the input fields
+    global rf_models
     sample = {
-        'engagement_rate': 0.8,         # 0.0 - 1.0
-        'time_on_task_s': 450,          # positive integer (seconds)
-        'hint_ratio': 0.5,              # 0.0 - 1.0
-        'interaction_count': 12,        # positive integer
-        'task_completed': 1,            # 0 or 1
-        'quiz_score': 92,               # 0 - 100
-        'difficulty': 3,                # positive integer (e.g., 1-10)
-        'error_rate': 0.2,              # 0.0 - 1.0
-        'task_timed_out': 0,            # 0 or 1
-        'time_before_hint_used': 120    # positive integer (seconds)
+        'engagement_rate': 0.8, 'time_on_task_s': 450, 'hint_ratio': 0.5, 'interaction_count': 12,
+        'task_completed': 1, 'quiz_score': 92, 'difficulty': 3, 'error_rate': 0.2,
+        'task_timed_out': 0, 'time_before_hint_used': 120
     }
     feature_notes = {
         'engagement_rate': "(0.0 - 1.0)",
@@ -248,15 +241,9 @@ def rf_panel():
         ], className="mb-2")
         for f in sample
     ]
-    return html.Div([
-        html.H2("Random Forest"),
-        html.P("Click 'Train Models' after loading and preprocessing data."),
-        dbc.Button("Train Models", id="train-rf-btn", n_clicks=0, color="primary", className="mt-2"),
-        dbc.Button("Retrain Models", id="retrain-rf-btn", n_clicks=0, color="warning", className="mt-2", style={"marginLeft": "10px"}),
-        html.Div(id="rf-output"),
-        html.Hr(),
-        html.H4("Test Model with Custom Input"),
-        html.Div(feature_inputs),
+
+    # Training parameter inputs
+    param_inputs = [
         dbc.Row([
             dbc.Col(html.Label("Test Size:"), width=4),
             dbc.Col(dcc.Input(id="rf-test-size", type="number", value=0.2, min=0.05, max=0.5, step=0.01, style={"width": "100%"}), width=8)
@@ -269,24 +256,43 @@ def rf_panel():
             dbc.Col(html.Label("N Estimators:"), width=4),
             dbc.Col(dcc.Input(id="rf-n-estimators", type="number", value=100, min=10, step=1, style={"width": "100%"}), width=8)
         ], className="mb-2"),
+    ]
+
+    # Determine button text and color
+    if rf_models is None:
+        btn_text = "Train Models"
+        btn_color = "primary"
+    else:
+        btn_text = "Retrain Models"
+        btn_color = "warning"
+
+    return html.Div([
+        html.H2("Random Forest"),
+        html.P("Configure training parameters and train the models."),
+        html.Div(param_inputs),
+        dbc.Button(btn_text, id="train-rf-btn", n_clicks=0, color=btn_color, className="mt-2"),
+        html.Div(id="rf-output"),
+        html.Hr(),
+        html.H4("Test Model with Custom Input"),
+        html.Div(feature_inputs),
         dbc.Button("Test", id="rf-test-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="rf-test-output", className="mt-3")
     ])
 
 @app.callback(
     Output("rf-output", "children"),
-    [Input("train-rf-btn", "n_clicks"),
-     Input("retrain-rf-btn", "n_clicks")],
+    Input("train-rf-btn", "n_clicks"),
     State("rf-test-size", "value"),
     State("rf-random-state", "value"),
     State("rf-n-estimators", "value"),
     prevent_initial_call=True
 )
-def handle_rf_train(train_clicks, retrain_clicks, test_size, random_state, n_estimators):
+def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
     global df_global, rf_models, features, metrics
     ctx = dash.callback_context
     if not ctx.triggered:
         return ""
+    # Only one button now, so always treat as train/retrain
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if df_global is None or df_global.empty:
@@ -329,8 +335,8 @@ def handle_rf_train(train_clicks, retrain_clicks, test_size, random_state, n_est
     )
 
     retrain_msg = ""
-    if trigger == "retrain-rf-btn":
-        retrain_msg = html.P("Models retrained due to engagement anomalies.", style={"color": "orange", "fontWeight": "bold"})
+    if rf_models is not None and train_clicks > 1:
+        retrain_msg = html.P("Models retrained.", style={"color": "orange", "fontWeight": "bold"})
 
     return html.Div([
         retrain_msg,
@@ -629,13 +635,13 @@ def qlearning_panel():
         dbc.Button("Train Q-Learning Agent", id="qlearn-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="qlearn-output"),
         html.Hr(),
+        html.H4("Q-Table Heatmap"),
+        dcc.Loading(dcc.Graph(id="qlearn-heatmap"), type="circle"),
+        html.Hr(),
         html.H4("Test Q-Learning Policy"),
         html.Div(test_rows),
         dbc.Button("Get Recommended Action", id="ql-test-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="ql-test-output"),
-        html.Hr(),
-        html.H4("Q-Table Heatmap"),
-        dcc.Loading(dcc.Graph(id="qlearn-heatmap"), type="circle"),
     ])
 
 @app.callback(
