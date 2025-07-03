@@ -1,5 +1,7 @@
 # ALS_Thesis Project Documentation
 
+Paper Title: Real-Time Adaptive Task Pathing Using Random Forest Prediction, Q-Learning, and Statistical Methods (Kalman, Simpson, Shewhart)
+
 Made by: Engr. Marjon D. Umbay  
 Created for paper article in compliance of the subject of:  
 * Numerical Methods and Techniques  
