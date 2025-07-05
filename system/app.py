@@ -235,8 +235,8 @@ from dash import callback_context
 def run_simpson_quantitative_analysis(n_clicks, pathname):
     if not n_clicks or pathname != "/simpson":
         raise PreventUpdate
-    from system.simpsons_rule import quantitative_analysis_simpsons_rule
-    from system.data_handling import load_csv
+    from simpsons_rule import quantitative_analysis_simpsons_rule
+    from data_handling import load_csv
 
     # Load data (same as used in simpsons_rule.py main)
     df = load_csv("data/sample_predictions_with_smoothed.csv")
