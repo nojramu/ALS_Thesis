@@ -340,23 +340,23 @@ def handle_kalman(n_clicks, pred_table_children, process_noise, measurement_nois
     global df_global
     import pandas as pd
     from plotly.graph_objs import Figure
-    from kalman_filter import add_kalman_column
+    from kalman_filter import add_kalman_column, compute_mse_raw_vs_smoothed
 
     if not pred_table_children:
-        return html.Div("Please upload or load predictions first.")
+        return html.Div("Please upload or load predictions first."), ""
 
     sample_pred_path = "data/sample_predictions.csv"
     try:
         df = pd.read_csv(sample_pred_path)
     except Exception as e:
-        return html.Div([f"Failed to load predictions: {e}"])
+        return html.Div([f"Failed to load predictions: {e}"]), ""
 
     try:
         df = add_kalman_column(df, col="cognitive_load", new_col="smoothed_cognitive_load",
                                process_noise=process_noise, measurement_noise=measurement_noise)
         df_global = df  # <-- Save to global so Simpson panel can access
     except Exception as e:
-        return html.Div([f"Kalman filter failed: {e}"])
+        return html.Div([f"Kalman filter failed: {e}"]), ""
 
     import plotly.graph_objs as go
     fig = go.Figure()
@@ -374,7 +374,18 @@ def handle_kalman(n_clicks, pred_table_children, process_noise, measurement_nois
         yaxis_title="Cognitive Load"
     )
 
-    return dcc.Graph(figure=fig)
+    # Compute MSE between raw and smoothed and compare prediction accuracy
+    try:
+        mse_results = compute_mse_raw_vs_smoothed(df, raw_col="cognitive_load", smoothed_col="smoothed_cognitive_load")
+        mse_text = (
+            f"Raw MSE: {mse_results['mse_raw']:.4f} | "
+            f"Smoothed MSE: {mse_results['mse_smoothed']:.4f} | "
+            f"Improvement: {mse_results['improvement']:.4f}"
+        )
+    except Exception as e:
+        mse_text = f"Failed to compute MSE: {e}"
+
+    return dcc.Graph(figure=fig), mse_text
 
 @dash.callback(
     Output("simpson-output", "children"),

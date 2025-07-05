@@ -193,6 +193,7 @@ def kalman_panel():
         ], className="mb-2"),
         dbc.Button("Apply Kalman Filter", id="kalman-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="kalman-output"),
+        html.Div(id="kalman-mse-output", style={"marginTop": "10px", "fontWeight": "bold"}),
         html.Hr(),
     ])
 

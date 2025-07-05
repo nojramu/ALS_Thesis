@@ -67,6 +67,30 @@ def add_kalman_column(df, col='cognitive_load', new_col='smoothed_cognitive_load
     df[new_col] = apply_kalman_filter(df[col].values, **kf_kwargs)
     return df
 
+import numpy as np
+
+def compute_mse_raw_vs_smoothed(df, raw_col='cognitive_load', smoothed_col='smoothed_cognitive_load'):
+    """
+    Compute the mean squared error (MSE) between raw and Kalman-smoothed values,
+    and compare prediction accuracy by computing MSE of raw vs. smoothed against true target.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing raw and smoothed columns.
+        raw_col (str): Name of the raw data column.
+        smoothed_col (str): Name of the smoothed data column.
+        target_col (str): Name of the true target column to compare predictions against.
+
+    Returns:
+        dict: Dictionary with keys 'mse_raw', 'mse_smoothed', and 'improvement'.
+    """
+    target_col = 'cognitive_load'  # Assuming true target is cognitive_load
+    if raw_col not in df.columns or smoothed_col not in df.columns or target_col not in df.columns:
+        raise ValueError(f"Columns '{raw_col}', '{smoothed_col}', and/or '{target_col}' not found in DataFrame.")
+    mse_raw = np.mean((df[target_col] - df[raw_col]) ** 2)
+    mse_smoothed = np.mean((df[target_col] - df[smoothed_col]) ** 2)
+    improvement = mse_raw - mse_smoothed
+    return {'mse_raw': mse_raw, 'mse_smoothed': mse_smoothed, 'improvement': improvement}
+
 if __name__ == "__main__":
     from data_handling import load_csv, save_csv
     from plot_utils import plot_line_chart
