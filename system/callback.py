@@ -7,7 +7,7 @@ import base64
 import io
 
 from data_handling import load_csv, preprocess_data
-from random_forest import train_models, predict
+from random_forest import train_models, predict, cross_validate_models
 from kalman_filter import add_kalman_column
 from simpsons_rule import simpsons_rule, discretize_simpsons_result
 from ql_setup import define_state_space, define_action_space, initialize_q_table
@@ -137,6 +137,11 @@ def handle_preprocessing(uploaded_contents, uploaded_filename, _):
 
 @dash.callback(
     Output("rf-output", "children"),
+    Output("cv-mae", "children"),
+    Output("cv-mse", "children"),
+    Output("cv-f1", "children"),
+    Output("cv-precision", "children"),
+    Output("cv-recall", "children"),
     Input("train-rf-btn", "n_clicks"),
     State("rf-test-size", "value"),
     State("rf-random-state", "value"),
@@ -147,9 +152,9 @@ def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
     global df_global, rf_models, features, metrics
     ctx = dash.callback_context
     if not ctx.triggered:
-        return ""
+        return "", "", "", "", "", ""
     if df_global is None or df_global.empty:
-        return html.Div("Please load and preprocess data first.")
+        return html.Div("Please load and preprocess data first."), "", "", "", "", ""
     feature_cols = [
         'engagement_rate', 'time_on_task_s', 'hint_ratio', 'interaction_count',
         'task_completed', 'quiz_score', 'difficulty', 'error_rate',
@@ -158,7 +163,7 @@ def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
     target_cols = ['cognitive_load', 'engagement_level']
     df = preprocess_data(df_global, feature_cols, is_training_data=True)
     if df is None or df.empty:
-        return html.Div("Data preprocessing failed. Please check your data.")
+        return html.Div("Data preprocessing failed. Please check your data."), "", "", "", "", ""
     reg, clf, features, metrics = train_models(df, feature_cols, target_cols,
                                                test_size=test_size,
                                                random_state=random_state,
@@ -185,16 +190,35 @@ def handle_rf_train(train_clicks, test_size, random_state, n_estimators):
     retrain_msg = ""
     if rf_models is not None and train_clicks > 1:
         retrain_msg = html.P("Models retrained.", style={"color": "orange", "fontWeight": "bold"})
-    return html.Div([
-        retrain_msg,
-        html.P(f"Regression MSE: {metrics['mse']:.4f}"),
-        html.P(f"Classification Accuracy: {metrics['accuracy']:.4f}"),
-        html.P("Models trained and stored in memory."),
-        html.H5("Regression Feature Importance"),
-        dcc.Graph(figure=reg_fig),
-        html.H5("Classification Feature Importance"),
-        dcc.Graph(figure=clf_fig)
-    ])
+
+    # Cross-validation metrics
+    cv_metrics = cross_validate_models(df, feature_cols, target_cols,
+                                       cv=5,
+                                       random_state=random_state,
+                                       n_estimators=n_estimators)
+    cv_mae = f"Cross-Validation MAE (Regression): {cv_metrics['mae_mean']:.4f} ± {cv_metrics['mae_std']:.4f}"
+    cv_mse = f"Cross-Validation MSE (Regression): {cv_metrics['mse_mean']:.4f} ± {cv_metrics['mse_std']:.4f}"
+    cv_f1 = f"Cross-Validation F1 Score (Classification): {cv_metrics['f1_mean']:.4f} ± {cv_metrics['f1_std']:.4f}"
+    cv_precision = f"Cross-Validation Precision (Classification): {cv_metrics['precision_mean']:.4f} ± {cv_metrics['precision_std']:.4f}"
+    cv_recall = f"Cross-Validation Recall (Classification): {cv_metrics['recall_mean']:.4f} ± {cv_metrics['recall_std']:.4f}"
+
+    return (
+        html.Div([
+            retrain_msg,
+            html.P(f"Regression MSE: {metrics['mse']:.4f}"),
+            html.P(f"Classification Accuracy: {metrics['accuracy']:.4f}"),
+            html.P("Models trained and stored in memory."),
+            html.H5("Regression Feature Importance"),
+            dcc.Graph(figure=reg_fig),
+            html.H5("Classification Feature Importance"),
+            dcc.Graph(figure=clf_fig)
+        ]),
+        cv_mae,
+        cv_mse,
+        cv_f1,
+        cv_precision,
+        cv_recall
+    )
 
 
 @dash.callback(

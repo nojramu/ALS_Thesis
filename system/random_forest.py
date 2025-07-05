@@ -40,6 +40,56 @@ def train_models(df, feature_cols, target_cols, test_size=0.2, random_state=25, 
 
     return reg, clf, feature_cols, {'mse': mse, 'accuracy': acc}
 
+from sklearn.model_selection import cross_val_score, cross_validate
+from sklearn.metrics import mean_absolute_error, f1_score, precision_score, recall_score, make_scorer
+
+def cross_validate_models(df, feature_cols, target_cols, cv=5, random_state=25, n_estimators=100):
+    """
+    Perform cross-validation for Random Forest regression and classification models.
+    Returns cross-validation metrics: MAE, MSE for regression; F1, precision, recall for classification.
+    """
+    X = df[feature_cols]
+    y_reg = df[target_cols[0]]
+    y_clf = df[target_cols[1]]
+
+    reg = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
+    clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+
+    # Define scoring metrics
+    scoring_reg = {'neg_mean_absolute_error': 'neg_mean_absolute_error', 'neg_mean_squared_error': 'neg_mean_squared_error'}
+    scoring_clf = {
+        'f1': make_scorer(f1_score, average='weighted'),
+        'precision': make_scorer(precision_score, average='weighted'),
+        'recall': make_scorer(recall_score, average='weighted')
+    }
+
+    # Cross-validate regression
+    reg_cv_results = cross_validate(reg, X, y_reg, cv=cv, scoring=scoring_reg, n_jobs=-1)
+    mae_scores = -reg_cv_results['test_neg_mean_absolute_error']
+    mse_scores = -reg_cv_results['test_neg_mean_squared_error']
+
+    # Cross-validate classification
+    clf_cv_results = cross_validate(clf, X, y_clf, cv=cv, scoring=scoring_clf, n_jobs=-1)
+
+    f1_scores = clf_cv_results['test_f1']
+    precision_scores = clf_cv_results['test_precision']
+    recall_scores = clf_cv_results['test_recall']
+
+    metrics = {
+        'mae_mean': mae_scores.mean(),
+        'mae_std': mae_scores.std(),
+        'mse_mean': mse_scores.mean(),
+        'mse_std': mse_scores.std(),
+        'f1_mean': f1_scores.mean(),
+        'f1_std': f1_scores.std(),
+        'precision_mean': precision_scores.mean(),
+        'precision_std': precision_scores.std(),
+        'recall_mean': recall_scores.mean(),
+        'recall_std': recall_scores.std()
+    }
+
+    return metrics
+
 def predict(models, feature_names, new_data_df):
     """
     Predict using trained models and a DataFrame of new data.
