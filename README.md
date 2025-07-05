@@ -71,6 +71,7 @@ This document provides detailed descriptions of the functionalities implemented 
 - Provides functions to apply the filter and add smoothed data as new columns.
 - Includes example usage with real data and plotting.
 - Supports saving smoothed data and visual comparison plots.
+- Computes mean squared error (MSE) between raw and smoothed data for evaluation.
 
 ---
 
@@ -91,6 +92,7 @@ This document provides detailed descriptions of the functionalities implemented 
 - Includes functions to print and visualize policy summaries and learning curves.
 - Supports saving and loading Q-table snapshots.
 - Provides utilities for policy evolution tracking and learning curve statistics.
+- Contains example usage demonstrating policy printing and plotting.
 
 ---
 
@@ -154,9 +156,9 @@ This document provides detailed descriptions of the functionalities implemented 
 - Implements Simpson's Rule numerical integration for cognitive load data.
 - Provides discretization of integral results into buckets.
 - Supports dynamic and historical range-based discretization.
-- Includes example usage with data loading and integration.
+- Includes quantitative analysis comparing Simpson's Rule with trapezoidal integration.
+- Contains example usage demonstrating integration and discretization.
 
 ---
 
 This detailed documentation summarizes the key functionalities of each module to aid understanding, maintenance, and further development of the system.
-
