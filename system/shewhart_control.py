@@ -1,6 +1,7 @@
 from plot_utils import plot_line_chart, save_figure_to_image_folder
 from ql_core import update_q_table  # Import at the top for clarity
 import numpy as np
+from sklearn.metrics import confusion_matrix
 
 def initialize_control_chart(window_size=10, anomaly_buffer_size=3):
     """
@@ -14,6 +15,33 @@ def initialize_control_chart(window_size=10, anomaly_buffer_size=3):
         'lcl': None,
         'anomalies': [],
         'anomaly_buffer': [False] * anomaly_buffer_size  # Track recent anomalies
+    }
+
+def evaluate_anomaly_detection_performance(true_labels, predicted_anomalies):
+    """
+    Evaluate sensitivity and specificity for anomaly detection.
+
+    Args:
+        true_labels (list or np.array): Ground truth binary labels (1 for anomaly, 0 for normal).
+        predicted_anomalies (list or np.array): Predicted anomaly flags (1 for anomaly, 0 for normal).
+
+    Returns:
+        dict: Dictionary with keys 'sensitivity' and 'specificity'.
+    """
+    true_labels = np.array(true_labels)
+    predicted_anomalies = np.array(predicted_anomalies)
+
+    if len(true_labels) != len(predicted_anomalies):
+        raise ValueError("Length of true_labels and predicted_anomalies must be the same.")
+
+    tn, fp, fn, tp = confusion_matrix(true_labels, predicted_anomalies, labels=[0,1]).ravel()
+
+    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
+    return {
+        'sensitivity': sensitivity,
+        'specificity': specificity
     }
 
 def calculate_control_limits(chart_state, num_stddev=3):
@@ -104,16 +132,6 @@ def plot_shewhart_chart(chart_state, filename_prefix='shewhart_chart', image_dir
     )
 
     # Highlight anomalies
-    if chart_data['anomalies']:
-        ax = fig.axes[0]
-        anomaly_x = [i for i in chart_data['anomalies']]
-        anomaly_y = [chart_data['engagement_rates'][i] for i in anomaly_x]
-        ax.plot(anomaly_x, anomaly_y, 'rx', markersize=10, label='Anomaly')
-        ax.legend()
-
-    save_figure_to_image_folder(fig, prefix=filename_prefix, image_dir=image_dir)
-    print("Shewhart control chart plotted and saved.")
-    return fig
 
 def get_adjusted_decision(chart_state, current_state, recommended_action):
     """

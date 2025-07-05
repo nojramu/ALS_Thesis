@@ -4,6 +4,12 @@ from dash.dependencies import Input, Output, State, ALL
 import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 from shewhart_control import initialize_control_chart
+from simpsons_rule import quantitative_analysis_simpsons_rule
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output, State, ALL
+import dash_bootstrap_components as dbc
+import plotly.graph_objs as go
 
 # --- App Initialization ---
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -54,7 +60,7 @@ def display_page(pathname):
     elif pathname == "/kalman":
         return kalman_panel()
     elif pathname == "/simpson":
-            return simpson_panel()
+        return simpson_panel()
     elif pathname == "/qlearning":
         return qlearning_panel()
     elif pathname == "/shewhart":
@@ -212,7 +218,75 @@ def simpson_panel():
         ),
         dbc.Button("Integrate Cognitive Load", id="simpson-btn", n_clicks=0, color="primary", className="mt-2"),
         html.Div(id="simpson-output"),
+        html.Hr(),
+        dbc.Button("Run Quantitative Analysis", id="simpson-quant-analysis-btn", n_clicks=0, color="secondary", className="mt-2"),
+        html.Div(id="simpson-quant-analysis-output", style={"whiteSpace": "pre-wrap", "marginTop": "10px"}),
     ])
+
+# Add callback for quantitative analysis button
+from dash.exceptions import PreventUpdate
+from dash import callback_context
+
+@app.callback(
+    Output("simpson-quant-analysis-output", "children"),
+    Input("simpson-quant-analysis-btn", "n_clicks"),
+    State("url", "pathname"),
+)
+def run_simpson_quantitative_analysis(n_clicks, pathname):
+    if not n_clicks or pathname != "/simpson":
+        raise PreventUpdate
+    from system.simpsons_rule import quantitative_analysis_simpsons_rule
+    from system.data_handling import load_csv
+
+    # Load data (same as used in simpsons_rule.py main)
+    df = load_csv("data/sample_predictions_with_smoothed.csv")
+    if df is None or "smoothed_cognitive_load" not in df.columns:
+        return "Data not available or missing 'smoothed_cognitive_load' column."
+
+    y = df["smoothed_cognitive_load"].values
+    h = 3  # Step size consistent with simpsons_rule usage
+
+    result = quantitative_analysis_simpsons_rule(y, h)
+    if result is None:
+        return "Quantitative analysis failed."
+
+    output_text = (
+        f"Simpson's Integral: {result['simpson_integral']:.4f}\n"
+        f"Trapezoidal Integral: {result['trapezoidal_integral']:.4f}\n"
+        f"Absolute Difference: {result['absolute_difference']:.4f}\n"
+    )
+    if result['relative_difference'] is not None:
+        output_text += f"Relative Difference: {result['relative_difference']:.4f}\n"
+    else:
+        output_text += "Relative Difference: Undefined (division by zero)\n"
+
+    return output_text
+
+# Add callback for anomaly detection performance display
+@app.callback(
+    Output("shewhart-anomaly-performance", "children"),
+    Input("shewhart-sim-interval", "n_intervals"),
+    State("shewhart-chart-state", "data"),
+    prevent_initial_call=True
+)
+def update_anomaly_detection_performance(n_intervals, chart_state):
+    if not chart_state:
+        raise PreventUpdate
+    from shewhart_control import evaluate_anomaly_detection_performance
+
+    # For demonstration, simulate true labels and predicted anomalies from chart_state
+    # In real use, true labels should come from ground truth data
+    true_labels = [0] * (len(chart_state.get('engagement_data', [])) - len(chart_state.get('anomaly_buffer', []))) + \
+                  [1 if anomaly else 0 for anomaly in chart_state.get('anomaly_buffer', [])]
+    predicted_anomalies = [1 if i in chart_state.get('anomalies', []) else 0 for i in range(len(chart_state.get('engagement_data', [])))]
+
+    try:
+        performance = evaluate_anomaly_detection_performance(true_labels, predicted_anomalies)
+        sensitivity = performance.get('sensitivity', 0.0)
+        specificity = performance.get('specificity', 0.0)
+        return f"Sensitivity: {sensitivity:.3f}\nSpecificity: {specificity:.3f}"
+    except Exception as e:
+        return f"Error computing performance: {e}"
 
 def qlearning_panel():
     # Training parameter inputs
@@ -322,6 +396,9 @@ def shewhart_panel():
             html.Div(id="shewhart-feedback-response", className="mt-2")
         ], id="shewhart-feedback-container", style={"display": "none"}),
         dcc.Graph(id="shewhart-plotly-fig", style={"height": "400px"}),
+        html.Hr(),
+        html.H4("Anomaly Detection Performance"),
+        html.Div(id="shewhart-anomaly-performance", style={"whiteSpace": "pre-wrap", "marginTop": "10px"}),
     ])
 
 def sys_simulation_panel():

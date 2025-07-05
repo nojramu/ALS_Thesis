@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.integrate import trapezoid
 
 def simpsons_rule(y, h):
     """
@@ -98,6 +99,76 @@ def discretize_simpsons_result(simpsons_integral_value, num_buckets=5, historica
 def redefine_state_space(num_buckets):
     simpsons_integral_levels = range(1, num_buckets + 1)
     # ... rest as in define_state_space ...
+
+def quantitative_analysis_simpsons_rule(y, h):
+    """
+    Perform quantitative analysis on Simpson's Rule impact by comparing it with
+    the trapezoidal rule on the same data.
+
+    Args:
+        y (array-like): 1D array or list of function values (the data points).
+        h (float): The step size (distance between consecutive data points).
+
+    Returns:
+        dict: Dictionary containing Simpson's integral, trapezoidal integral,
+              absolute difference, and relative difference.
+    """
+    y = np.asarray(y)
+    simpson_integral = simpsons_rule(y, h)
+    trapezoidal_integral = trapezoid(y, dx=h)
+
+    if simpson_integral is None:
+        print("Simpson's Rule integration failed.")
+        return None
+
+    abs_diff = abs(simpson_integral - trapezoidal_integral)
+    rel_diff = abs_diff / abs(trapezoidal_integral) if trapezoidal_integral != 0 else None
+
+    result = {
+        'simpson_integral': simpson_integral,
+        'trapezoidal_integral': trapezoidal_integral,
+        'absolute_difference': abs_diff,
+        'relative_difference': rel_diff
+    }
+    return result
+
+if __name__ == "__main__":
+    from data_handling import load_csv
+
+    # Load the CSV with smoothed cognitive load using data_handling utility
+    df = load_csv("data/sample_predictions_with_smoothed.csv")
+
+    if df is None:
+        print("Failed to load data. Exiting.")
+    else:
+        # Use the smoothed cognitive load column
+        smoothed_cognitive_load = df['smoothed_cognitive_load'].values
+        h = 3  # Step size (adjust as appropriate for your data)
+
+        # Apply Simpson's Rule
+        integral = simpsons_rule(smoothed_cognitive_load, h)
+        print(f"Simpson's Rule Integral (smoothed): {integral}")
+
+        # Example: Discretize the integral into 5 buckets
+        historical_integrals = None  # Or load/compute as needed
+        bucket_5 = discretize_simpsons_result(integral, num_buckets=5, historical_integral_values=historical_integrals)
+        print(f"Discretized Bucket (5 buckets): {bucket_5}")
+
+        # Example: Discretize the integral into 7 buckets
+        bucket_7 = discretize_simpsons_result(integral, num_buckets=7, historical_integral_values=historical_integrals)
+        print(f"Discretized Bucket (7 buckets): {bucket_7}")
+
+        # Perform quantitative analysis comparing Simpson's Rule and trapezoidal rule
+        analysis_result = quantitative_analysis_simpsons_rule(smoothed_cognitive_load, h)
+        if analysis_result:
+            print("Quantitative Analysis of Simpson's Rule Impact:")
+            print(f"Simpson's Integral: {analysis_result['simpson_integral']:.4f}")
+            print(f"Trapezoidal Integral: {analysis_result['trapezoidal_integral']:.4f}")
+            print(f"Absolute Difference: {analysis_result['absolute_difference']:.4f}")
+            if analysis_result['relative_difference'] is not None:
+                print(f"Relative Difference: {analysis_result['relative_difference']:.4f}")
+            else:
+                print("Relative Difference: Undefined (division by zero)")
 
 if __name__ == "__main__":
     from data_handling import load_csv
